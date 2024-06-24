@@ -1,0 +1,194 @@
+<WelcomeScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Welcome to the game of cricket'
+        Button:
+            text: 'Start'
+            on_press: root.start_game()
+
+<DetailsForm>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Details Form'
+        TextInput:
+            id: player1_input
+            hint_text: 'Player 1 Name'
+        TextInput:
+            id: player2_input
+            hint_text: 'Player 2 Name'
+        BoxLayout:
+            orientation: 'horizontal'
+            Button:
+                text: 'Submit'
+                on_press: root.submit_details(player1_input.text, player2_input.text)
+            Button:
+                text: 'Records'
+                on_press: root.show_records()
+
+<PlayersSelection>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Choose Batsman'
+        ScrollView:
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                Button:
+                    text: root.team[0]
+                    on_press: root.choose_batsman(root.team[0])
+                Button:
+                    text: root.team[1]
+                    on_press: root.choose_batsman(root.team[1])
+                Button:
+                    text: root.team[2]
+                    on_press: root.choose_batsman(root.team[2])
+                Button:
+                    text: root.team[3]
+                    on_press: root.choose_batsman(root.team[3])
+                Button:
+                    text: root.team[4]
+                    on_press: root.choose_batsman(root.team[4])
+
+<BattingScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Batting'
+        Label:
+            text: 'Total Score of ' + root.leader + "'s team: " + str(root.score)
+        Label:
+            text: 'Chasing: ' + str(root.oppo)
+        Label:
+            text: 'Current Batsman: ' + root.current_batsman
+        Label:
+            text: 'Wickets Remaining: ' + str(5 - root.wicket)
+        Label:
+            text: 'Runs from Last Ball: ' + str(root.last_run)
+        Button:
+            text: 'Click me to bat'
+            on_press: root.take_run()
+
+<ScoreBoard>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: root.team_name + "'s Team Scorecard"
+        ScrollView:
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                Label:
+                    text: 'Best Player of the Match: ' + root.best_player
+                    color: 1, 0, 0, 1
+                Label:
+                    text: 'Man of the Match: ' + root.man_of_the_match
+                    color: 0, 0, 1, 1
+                GridLayout:
+                    cols: 4
+                    Label:
+                        text: 'Player Name'
+                    Label:
+                        text: 'Runs Scored'
+                    Label:
+                        text: '4/6'
+                    Label:
+                        text: 'Balls Faced'
+                    Label:
+                        text: root.team[0]
+                    Label:
+                        text: str(root.scoreboard[root.team[0]])
+                    Label:
+                        text: str(root.fours[root.team[0]]) + '/' + str(root.six[root.team[0]])
+                    Label:
+                        text: str(root.balls[root.team[0]])
+                    Label:
+                        text: root.team[1]
+                    Label:
+                        text: str(root.scoreboard[root.team[1]])
+                    Label:
+                        text: str(root.fours[root.team[1]]) + '/' + str(root.six[root.team[1]])
+                    Label:
+                        text: str(root.balls[root.team[1]])
+                    Label:
+                        text: root.team[2]
+                    Label:
+                        text: str(root.scoreboard[root.team[2]])
+                    Label:
+                        text: str(root.fours[root.team[2]]) + '/' + str(root.six[root.team[2]])
+                    Label:
+                        text: str(root.balls[root.team[2]])
+                    Label:
+                        text: root.team[3]
+                    Label:
+                        text: str(root.scoreboard[root.team[3]])
+                    Label:
+                        text: str(root.fours[root.team[3]]) + '/' + str(root.six[root.team[3]])
+                    Label:
+                        text: str(root.balls[root.team[3]])
+                    Label:
+                        text: root.team[4]
+                    Label:
+                        text: str(root.scoreboard[root.team[4]])
+                    Label:
+                        text: str(root.fours[root.team[4]]) + '/' + str(root.six[root.team[4]])
+                    Label:
+                        text: str(root.balls[root.team[4]])
+                Label:
+                    text: '-------------------'
+                Label:
+                    text: 'Extras'
+                Label:
+                    text: str(root.extras)
+                Label:
+                    text: 'Net Total'
+                Label:
+                    text: str(root.net_total)
+        Button:
+            text: 'Exit'
+            on_press: root.exit_game()
+        Button:
+            text: 'Records'
+            on_press: root.show_records()
+
+<RecordsScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Record of All Players'
+        ScrollView:
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                GridLayout:
+                    cols: 3
+                    Label:
+                        text: 'Sr. No'
+                    Label:
+                        text: 'Name'
+                    Label:
+                        text: 'Runs Scored'
+                    Label:
+                        text: 'Matches Played'
+                    Label:
+                        text: root.players[0]
+                    Label:
+                        text: str(root.runs[0])
+                        font_size: '15sp'
+                    Label:
+                        text: str(root.matches[0])
+                    Label:
+                        text: root.players[1]
+                    Label:
+                        text: str(root.runs[1])
+                        font_size: '15sp'
+                    Label:
+                        text: str(root.matches[1])
+        Button:
+            text: 'Back to Main Menu'
+            on_press: root.back_to_main_menu()

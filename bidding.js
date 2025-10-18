@@ -18,7 +18,7 @@ let currentUser = localStorage.getItem('playerName') || "Akshit";
 
 // Global variables
 let players = [];
-let currentPlayerIndex = 0; // Always 0 for now
+let currentPlayerIndex = 1; // Always 0 for now
 let userData = {}; // Store user data globally for checks
 
 // Fetch data from Firebase

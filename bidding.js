@@ -18,7 +18,7 @@ let currentUser = localStorage.getItem('playerName') || "Akshit";
 
 // Global variables
 let players = [];
-let currentPlayerIndex = 1; // Always 0 for now
+let currentPlayerIndex = 0; // Always 0 for now
 let userData = {}; // Store user data globally for checks
 
 // Fetch data from Firebase
@@ -28,6 +28,23 @@ function fetchData() {
 
   playersRef.once('value', (snapshot) => {
     players = snapshot.val() || [];
+    // Add this after players = snapshot.val() || [];
+if (players.length > 0 && players[0] === undefined) {
+    // Reindex: shift keys down by 1 to start from 0
+    const reindexed = [];
+    for (let i = 1; i <= players.length; i++) {
+        if (players[i] !== undefined) {
+            reindexed.push(players[i]);
+        }
+    }
+    players = reindexed;
+    // Update Firebase with reindexed array
+    playersRef.set(players).then(() => {
+        console.log('Players reindexed successfully.');
+    }).catch((error) => {
+        console.error('Error reindexing players: ' + error.message);
+    });
+}
     displayPlayer();
     checkBidderStatus(); // Check if user already bid on this player
     checkUserBidStatus(); // Check if user's bid=1

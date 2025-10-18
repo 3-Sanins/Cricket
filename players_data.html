@@ -2,46 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Players Data</title>
     <link rel="stylesheet" href="players_data.css">
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
 <body>
-    <h1>Players Data</h1>
+  
+  <p id="selectedCount">Selected Players: 0/11</p> <!-- Ye add karo -->
+
+    <h1>Your Team Players</h1>
     <table id="playersTable">
         <thead>
             <tr>
-                <th>Name</th>
+                <th>Player Name</th>
                 <th>Type</th>
                 <th>Batting Skills</th>
-                <th>Bowling Skills</th>
+                <th>Points</th>
+                <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
-            <!-- Sample rows will be added via JS -->
+        <tbody id="playersTableBody">
+            <!-- Players yahan dynamically add honge -->
         </tbody>
     </table>
-    <div id="playerPopup" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:20px; border:1px solid #ccc; text-align: left; max-width: 300px;">
-        <h2 id="popupName"></h2>
-        <p><strong>Batting Skills:</strong> <span id="popupBattingSkills"></span></p>
-        <p><strong>Bowling Skills:</strong> <span id="popupBowlingSkills"></span></p>
-        <p><strong>Abilities:</strong> <span id="popupAbilities"></span></p>
-        <p><strong>History:</strong></p>
-        <p>Matches: <span id="popupMatches"></span></p>
-        <p>Runs: <span id="popupRuns"></span></p>
-        <p>Wickets: <span id="popupWickets"></span></p>
-        <p>Fifties: <span id="popupFifties"></span></p>
-        <p>Hundreds: <span id="popupHundreds"></span></p>
-        <p>5 Wicket Hauls: <span id="popup5Wickets"></span></p>
-        <p>Avg: <span id="popupAvg"></span></p>
-        <button id="makeCaptainBtn">Make Captain</button>
-        <button id="removeCaptainBtn">Remove Captain</button>
-        <button id="selectBtn">Select</button>
-        <button id="deselectBtn">Deselect</button>
-        <button id="closePopupBtn">Close</button>
+
+    <!-- Modal for full player data -->
+    <div id="playerModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalPlayerName"></h2>
+            <p><strong>Type:</strong> <span id="modalType"></span></p>
+            <p><strong>Batting Skills:</strong> <span id="modalBattingSkills"></span></p>
+            <p><strong>Batting Rating:</strong> <span id="modalBattingRating"></span></p>
+            <p><strong>Bowling Rating:</strong> <span id="modalBowlingRating"></span></p>
+            <p><strong>Price:</strong> <span id="modalPrice"></span></p>
+            <p><strong>Matches:</strong> <span id="modalMatches"></span></p>
+            <p><strong>Runs:</strong> <span id="modalRuns"></span></p>
+            <p><strong>Wickets:</strong> <span id="modalWickets"></span></p>
+            <p><strong>Fifties:</strong> <span id="modalFifties"></span></p>
+            <p><strong>Hundreds:</strong> <span id="modalHundreds"></span></p>
+            <p><strong>5 Wicket Hauls:</strong> <span id="modal5WicketHauls"></span></p>
+            <p><strong>Avg:</strong> <span id="modalAvg"></span></p>
+        </div>
     </div>
-    <button id="backBtn">Back to Main</button>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  
     <script src="players_data.js"></script>
 </body>
 </html>

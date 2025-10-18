@@ -1,3 +1,67 @@
+// Firebase config (same as before, agar alag file hai toh yahan add karo)
+const firebaseConfig = {
+  apiKey: "AIzaSyDBhHt1wbY-gwlmUYkLSWblqgs8sptCWps",
+  authDomain: "cricket-f3711.firebaseapp.com",
+  databaseURL: "https://cricket-f3711-default-rtdb.firebaseio.com",
+  projectId: "cricket-f3711",
+  storageBucket: "cricket-f3711.firebasestorage.app",
+  messagingSenderId: "84308127741",
+  appId: "1:84308127741:web:9d7cc9843558d4d053b394"
+};
+
+// Firebase initialize karo (agar pehle initialize nahi hai)
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+// Firebase database reference
+const db = firebase.database();
+
+// Function to validate team: exactly 11 players and captain != ""
+function validateTeam(callback) {
+  const playerName = localStorage.getItem('playerName');
+  if (!playerName) {
+    alert('Player name not found in localStorage!');
+    callback(false);
+    return;
+  }
+
+  // selected_team fetch karo
+  db.ref('users/' + playerName + '/selected_team').once('value').then((snapshot) => {
+    const selectedTeam = snapshot.val();
+    if (!selectedTeam) {
+      alert('No selected team found!');
+      callback(false);
+      return;
+    }
+
+    // Count players (captain ko exclude karo)
+    const playerCount = Object.keys(selectedTeam).filter(key => key !== 'captain').length;
+
+    // Check conditions
+    if (playerCount !== 11) {
+      alert(`You must select exactly 11 players. Currently selected: ${playerCount}`);
+      callback(false);
+      return;
+    }
+
+    if (!selectedTeam.captain || selectedTeam.captain === "") {
+      alert('You must select a captain!');
+      callback(false);
+      return;
+    }
+
+    // Sab theek hai
+    alert('Team is valid! Ready to play.');
+    callback(true);
+  }).catch((error) => {
+    console.error('Error validating team:', error);
+    alert('Error validating team!');
+    callback(false);
+  });
+}
+
+
 document.addEventListener('DOMContentLoaded', function() {
   const savedName = localStorage.getItem('playerName');
   if (savedName) {
@@ -17,7 +81,13 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('startGameBtn').addEventListener('click', function() {
-    window.location.href = 'bidding.html'; // Link to start_game.html
+    validateTeam((isvalid) => {
+      if (isvalid){
+        alert("You are ready, but game is not ready yet!")
+      }
+    });
+    
+//    window.location.href = 'bidding.html'; // Link to start_game.html
   });
 
   document.getElementById('myDataBtn').addEventListener('click', function() {

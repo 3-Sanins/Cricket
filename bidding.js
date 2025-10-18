@@ -61,7 +61,7 @@ function checkBidderStatus() {
   if (players.length > 0 && players[0].bidder === currentUser) {
     document.getElementById('take-btn').disabled = true;
     document.getElementById('leave-btn').disabled = true;
-    alert('You have already bid on this player!');
+    //alert('You have already bid on this player!');
   } else {
     document.getElementById('take-btn').disabled = false;
     document.getElementById('leave-btn').disabled = false;

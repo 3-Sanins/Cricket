@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Cricket Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="main_game.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center">Realtime T20 Cricket Game</h1>
+        
+        <!-- Game ID Input -->
+        <div class="mb-3" id="game-id-section">
+            <label for="game-id" class="form-label">Game ID (Share with opponent)</label>
+            <input type="text" class="form-control" id="game-id" placeholder="Enter Game ID">
+            <button class="btn btn-secondary mt-2" id="join-game-btn">Join Game</button>
+        </div>
+
+        <!-- Scoreboard -->
+        <div class="row mb-4" id="scoreboard" style="display: none;">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Team 1</div>
+                    <div class="card-body">
+                        <p id="team1-name">Name: Loading...</p>
+                        <p id="team1-score">Score: 0/0</p>
+                        <p id="team1-overs">Overs: 0.0</p>
+                        <p id="team1-runrate">Run Rate: 0.0</p>
+                        <p id="team1-target" style="display: none;">Target: 0 (RRR: 0.0)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Team 2</div>
+                    <div class="card-body">
+                        <p id="team2-name">Name: Waiting...</p>
+                        <p id="team2-score">Score: 0/0</p>
+                        <p id="team2-overs">Overs: 0.0</p>
+                        <p id="team2-runrate">Run Rate: 0.0</p>
+                        <p id="team2-target" style="display: none;">Target: 0 (RRR: 0.0)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Batsmen and Bowler -->
+        <div class="row mb-4" id="players-section" style="display: none;">
+            <div class="col-md-6">
+                <h3>Batsmen</h3>
+                <div class="card mb-2" id="batsman1-card">
+                    <div class="card-body">
+                        <p id="batsman1-name">Slot 1: None</p>
+                        <p id="batsman1-stats">Runs: 0 (0 balls)</p>
+                        <span id="striker1-dot" class="badge bg-danger" style="display: none;">Striker</span>
+                    </div>
+                </div>
+                <div class="card" id="batsman2-card">
+                    <div class="card-body">
+                        <p id="batsman2-name">Slot 2: None</p>
+                        <p id="batsman2-stats">Runs: 0 (0 balls)</p>
+                        <span id="striker2-dot" class="badge bg-danger" style="display: none;">Striker</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h3>Bowler</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <p id="bowler-name">Bowler: None</p>
+                        <p id="bowler-stats">Wickets: 0 (0 balls)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ball Log -->
+        <div class="mb-4" id="ball-log-section" style="display: none;">
+            <h3>Last Balls</h3>
+            <p id="ball-log">No balls yet</p>
+        </div>
+
+        <!-- Game Status -->
+        <div class="alert alert-info" id="game-status">Initializing...</div>
+
+        <!-- Action Buttons -->
+        <div class="row mb-4" id="action-buttons" style="display: none;">
+            <div class="col-12 text-center">
+                <button class="btn btn-primary me-2" id="defence-btn">Defence</button>
+                <button class="btn btn-success me-2" id="strike-btn">Strike</button>
+                <button class="btn btn-warning" id="stroke-btn">Stroke</button>
+            </div>
+        </div>
+
+        <!-- Selections -->
+        <div id="selections" style="display: none;">
+            <div id="toss-section">
+                <h3>Toss</h3>
+                <button class="btn btn-outline-primary me-2" id="heads-btn">Heads</button>
+                <button class="btn btn-outline-primary" id="tails-btn">Tails</button>
+            </div>
+            <div id="batsman-selection" style="display: none;">
+                <h3>Select Batsman for Slot <span id="slot-number">1</span></h3>
+                <select class="form-select mb-2" id="batsman-select"></select>
+                <button class="btn btn-success" id="select-batsman-btn">Select</button>
+            </div>
+            <div id="bowler-selection" style="display: none;">
+                <h3>Select Bowler</h3>
+                <select class="form-select mb-2" id="bowler-select"></select>
+                <button class="btn btn-success" id="select-bowler-btn">Select</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main_game.js"></script>
+</body>
+</html>

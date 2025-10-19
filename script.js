@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('startGameBtn').addEventListener('click', function() {
     validateTeam((isvalid) => {
       if (isvalid){
-        alert("You are ready, but game is not ready yet!")
+        window.location.href = 'main_game.html';
       }
     });
     

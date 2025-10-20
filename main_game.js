@@ -335,14 +335,12 @@ function handleBatting(userData, opponentData, currentGameData) {
       return;
     }
 
-    if ((updatedUser.wicket || 0) >= 10) {
+        if ((updatedUser.wicket || 0) >= 10) {
       if (post.play === 'inning1') {
-        const temp = post.chance[currentUserKey];
-        await gameRef.update({
-          [`chance/${currentUserKey}`]: post.chance[opponentKey],
-          [`chance/${opponentKey}`]: temp,
-          play: 'inning2'
-        });
+        // Show popup instead of direct update
+        const targetRuns = updatedUser.total_runs + 1; // Target is opponent's runs + 1
+        const battingUser = updatedUser.name;
+        showInningsChangePopup(targetRuns, battingUser);
       } else {
         endGame(opponentKey);
       }
@@ -350,16 +348,17 @@ function handleBatting(userData, opponentData, currentGameData) {
 
     if ((updatedUser.BALLS || 0) >= 12) {
       if (post.play === 'inning1') {
-        const newChance = {
-          [currentUserKey]: post.chance[opponentKey],
-          [opponentKey]: post.chance[currentUserKey]
-        };
-        await gameRef.update({ play: 'inning2', chance: newChance });
+        // Show popup
+        const targetRuns = updatedUser.total_runs + 1;
+        const battingUser = updatedUser.name;
+        showInningsChangePopup(targetRuns, battingUser);
       } else {
         const winner = (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0) ? currentUserKey : (updatedUser.total_runs || 0) < (updatedOpp.total_runs || 0) ? opponentKey : 'tie';
         endGame(winner);
       }
     }
+
+    
   }
 }
 ///// BOWLING LOGIC /////
@@ -448,13 +447,12 @@ function handleBowling(userData, opponentData, currentGameData) {
       bowlerSelection(userNow);
     }
 
-    if ((oppNow.BALLS || 0) >= 12) {
+        if ((oppNow.BALLS || 0) >= 120) {
       if (postGame.play === 'inning1') {
-        const newChance = {
-          [currentUserKey]: postGame.chance[opponentKey],
-          [opponentKey]: postGame.chance[currentUserKey]
-        };
-        await gameRef.update({ play: 'inning2', chance: newChance });
+        // Show popup
+        const targetRuns = oppNow.total_runs + 1;
+        const battingUser = oppNow.name;
+        showInningsChangePopup(targetRuns, battingUser);
         return;
       } else {
         const winner =
@@ -538,17 +536,21 @@ function bowlerSelection(userData) {
   showPopup('', html);
 }
 
-///// OUT / END-GAME /////
 async function endGame(winnerKey) {
+  // Force hide game UI and show end UI
   gameContainer.style.display = 'none';
   endGameUI.style.display = 'block';
   document.getElementById('winnerText').innerHTML = `${winnerKey} WON the game!`;
 
+  // Populate scoreboard
   const snapshot = (await gameRef.once('value')).val() || {};
   let scoreboardHTML = '<h3>Scoreboard</h3>';
   ['player1', 'player2'].forEach(player => {
     const data = snapshot[player] || {};
-    scoreboardHTML += `<h4>${data.name || player}</h4><table><tr><th>Batsman</th><th>Runs</th><th>Balls</th><th>SR</th></tr>`;
+    scoreboardHTML += `<h4>${data.name || player}</h4>`;
+
+    // Batsmen: Runs, Balls, SR
+    scoreboardHTML += `<h5>Batsmen</h5><table><tr><th>Name</th><th>Runs</th><th>Balls</th><th>SR</th></tr>`;
     const p11 = data.playing11 || {};
     Object.keys(p11).forEach(b => {
       const runs = p11[b].runs_made || 0;
@@ -557,9 +559,20 @@ async function endGame(winnerKey) {
       scoreboardHTML += `<tr><td>${b}</td><td>${runs}</td><td>${balls}</td><td>${sr}</td></tr>`;
     });
     scoreboardHTML += '</table>';
+
+    // Bowlers: Wickets
+    scoreboardHTML += `<h5>Bowlers</h5><table><tr><th>Name</th><th>Wickets</th></tr>`;
+    Object.keys(p11).forEach(b => {
+      const wickets = p11[b].wicket_taken || 0;
+      if (wickets > 0) {
+        scoreboardHTML += `<tr><td>${b}</td><td>${wickets}</td></tr>`;
+      }
+    });
+    scoreboardHTML += '</table>';
   });
   document.getElementById('scoreboard').innerHTML = scoreboardHTML;
 
+  // Update user stats
   try {
     const playersToUpdate = [snapshot.player1, snapshot.player2];
     for (const p of playersToUpdate) {
@@ -594,7 +607,6 @@ async function endGame(winnerKey) {
     window.location.href = 'index.html';
   };
 }
-
 ///// UI HELPERS /////
 function displayScorecard(userData, opponentData, play) {
   userData = userData || {};
@@ -631,6 +643,24 @@ function showPopup(title, body) {
 function hidePopup() {
   popupEl.style.display = 'none';
 }
+
+// Global function for innings change popup
+window.showInningsChangePopup = function(targetRuns, battingUser) {
+  showPopup('Innings Change', `
+    Batting over of ${battingUser}. Target set ${targetRuns}.<br>
+    <button onclick="startInning2()">OKAY</button>
+  `);
+};
+
+window.startInning2 = function() {
+  const currentChance = gameData.chance;
+  const newChance = {
+    [currentUserKey]: currentChance[opponentKey],
+    [opponentKey]: currentChance[currentUserKey]
+  };
+  gameRef.update({ play: 'inning2', chance: newChance });
+  hidePopup();
+};
 
 ///// Random run probability placeholder /////
 function run_probability(BALLS, battingRating, bowlingRating, battingSkills, bowlingSkills, mood) {

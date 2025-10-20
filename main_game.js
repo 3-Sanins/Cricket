@@ -292,22 +292,22 @@ function handleBatting(userData, opponentData, currentGameData) {
       updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 6;
       updates[`${userRoot}/playing11/${strikerName}/six`] = (batsmanP.six || 0) + 1;
     } else if (run === 7 || run === 8) {
-  updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
-  updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
-  updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
-  updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
+      // Out logic: Move to batters, increment wicket, delete from batting, switch strike
+      updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
+      updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
+      updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
+      updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
 
-  // Add: Trigger batsman selection if wickets < 10
-  const newWicketCount = (userNode.wicket || 0) + 1;
-  if (newWicketCount < 10) {
-    // Switch striker to the other batsman if available
-    const battingObj = userNode.batting || {};
-    const other = Object.keys(battingObj).find(b => b !== strikerName);
-    if (other) {
-      updates[`${userRoot}/batting/${other}/strike`] = true;
-    }
-    // Note: batsmanSelection will be called after update via listener
-  }
+      // Delete out batsman from batting
+      updates[`${userRoot}/batting/${strikerName}`] = null;
+
+      // Switch strike to remaining batsman
+      const remainingBatsmen = Object.keys(battingObj).filter(b => b !== strikerName);
+      if (remainingBatsmen.length > 0) {
+        updates[`${userRoot}/batting/${remainingBatsmen[0]}/strike`] = true;
+      }
+
+      // If wickets < 10, batsmanSelection will trigger via listener after update
     }
 
     if (run !== 9) {
@@ -362,7 +362,6 @@ function handleBatting(userData, opponentData, currentGameData) {
     }
   }
 }
-
 ///// BOWLING LOGIC /////
 function handleBowling(userData, opponentData, currentGameData) {
   displayScorecard(opponentData, userData, currentGameData.play);
@@ -477,62 +476,66 @@ function handleBowling(userData, opponentData, currentGameData) {
   }
 }
 
-///// SELECTION POPUPS /////
-function batsmanSelection(userNode) {
-  if (!gameData || !currentUserKey || !gameData.chance || gameData.chance[currentUserKey] !== 'bat') return;
-
-  if (Object.keys(gameData[currentUserKey].batting || {}).length >= 2) return;
-
-  const playing11 = gameData[currentUserKey].playing11 || {};
-  const outList = gameData[currentUserKey].batters || {};
-  let html = `<h3>Select Batsman</h3><table><tr><th>Name</th><th>Batting Rating</th><th>Skill</th><th>Select</th></tr>`;
-  Object.keys(playing11).forEach(player => {
-    if (outList[player]) return;
-    if (gameData[currentUserKey].batting && gameData[currentUserKey].batting[player]) return;
-    const p = playing11[player];
-    html += `<tr><td>${player}</td><td>${p.battingRating || '-'}</td><td>${p.battingSkills || '-'}</td><td><input type="radio" name="batsman" value="${player}"></td></tr>`;
-  });
-  html += `</table><div style="text-align:right"><button onclick="selectBatsman()">Play</button></div>`;
-  showPopup('', html);
-
+// Batsman selection
+function batsmanSelection(userData) {
+  // Make selectBatsman global at the start
   window.selectBatsman = function() {
-    const selectedRadio = document.querySelector('input[name="batsman"]:checked');
-    if (!selectedRadio) return alert('Select a batsman');
-    const selected = selectedRadio.value;
-    const battingPath = `${currentUserKey}/batting/${selected}`;
-    const battingCount = Object.keys(gameData[currentUserKey].batting || {}).length;
-    const isStriker = battingCount === 0;
-    gameRef.child(battingPath).set({ strike: isStriker });
+    const selected = document.querySelector('input[name="batsman"]:checked').value;
+    const batting = gameData[currentUserKey].batting || {};
+    if (Object.keys(batting).length === 0) {
+      // Pehle batsman striker
+      batting[selected] = { strike: true };
+    } else if (Object.keys(batting).length === 1) {
+      // Dusra batsman non-striker
+      batting[selected] = { strike: false };
+    }
+    database.ref(`game/${currentUserKey}/batting`).update(batting);
     hidePopup();
+    // Agar sirf ek batsman tha, toh doosra select karne ke liye popup fir se dikha
+    if (Object.keys(batting).length === 1) {
+      batsmanSelection(userData);
+    }
   };
-}
-function bowlerSelection(userNode) {
-  // Add check to prevent popup if game has ended
-  if (!gameData || gameData.play !== 'inning1' && gameData.play !== 'inning2') return;
 
-  if (!gameData || !currentUserKey || !gameData.chance || gameData.chance[currentUserKey] !== 'ball') return;
-
-  // ... (rest of the function remains the same)
-  if (!gameData || !currentUserKey || !gameData.chance || gameData.chance[currentUserKey] !== 'ball') return;
-
-  const playing11 = gameData[currentUserKey].playing11 || {};
-  let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Select</th></tr>`;
-  Object.keys(playing11).forEach(player => {
-    const p = playing11[player];
-    if (p.type && p.type.toLowerCase() === 'batter') return; // Exclude pure batsmen
-    html += `<tr><td>${player}</td><td>${p.bowlingRating || '-'}</td><td>${p.bowlingSkills || p.battingSkills || '-'}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
+  const wicket = userData.wicket;
+  const num = wicket + 2;
+  const battingCount = Object.keys(gameData[currentUserKey].batting || {}).length;
+  const role = battingCount === 0 ? 'Striker' : 'Non-Striker';
+  let html = `<h3>Select Batsman ${num} (${role})</h3><table><tr><th>Name</th><th>Batting Rating</th><th>Skill</th><th>Select</th></tr>`;
+  Object.keys(userData.playing11).forEach(player => {
+    // Filter: Already selected or out batsmen ko exclude karo
+    const isSelected = gameData[currentUserKey].batting && gameData[currentUserKey].batting[player];
+    const isOut = gameData[currentUserKey].batters && gameData[currentUserKey].batters[player];
+    if (!isSelected && !isOut) {
+      html += `<tr><td>${player}</td><td>${userData.playing11[player].battingRating}</td><td>${userData.playing11[player].battingSkills}</td><td><input type="radio" name="batsman" value="${player}"></td></tr>`;
+    }
   });
-  html += `</table><div style="text-align:right"><button onclick="selectBowler()">Play</button></div>`;
+  html += `</table><button onclick="window.selectBatsman()">Play</button>`;
   showPopup('', html);
-
+}
+// Bowler selection
+function bowlerSelection(userData) {
+  // Make selectBowler global at the start
   window.selectBowler = function() {
-    const sel = document.querySelector('input[name="bowler"]:checked');
-    if (!sel) return alert('Select a bowler');
-    const selected = sel.value;
-    gameRef.child(`${currentUserKey}/baller`).set(selected);
+    const selected = document.querySelector('input[name="bowler"]:checked').value;
+    database.ref(`game/${currentUserKey}/baller`).set(selected);
     hidePopup();
-    bowlingUIEl.style.display = 'block';
   };
+
+  if (!userData || !userData.playing11) {
+    console.error('userData or playing11 is null/undefined');
+    return; // Null check
+  }
+
+  let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Select</th></tr>`;
+  Object.keys(userData.playing11).forEach(player => {
+    const playerData = userData.playing11[player];
+    if (playerData.type === 'bowler' || playerData.type === 'all rounder') { // Include all rounder
+      html += `<tr><td>${player}</td><td>${playerData.bowlingRating}</td><td>${playerData.battingSkills}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
+    }
+  });
+  html += `</table><button onclick="window.selectBowler()">Play</button>`;
+  showPopup('', html);
 }
 
 ///// OUT / END-GAME /////

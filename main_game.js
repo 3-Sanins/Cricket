@@ -382,7 +382,7 @@ async function handleBowling(userData, opponentData, currentGameData) {
     }
   }
 
-  if ((oppNow.BALLS || 0) >= 60) {
+  if ((oppNow.BALLS || 0) >= 120) {
     if (currentGameData.play === 'inning1') {
       const targetRuns = oppNow.total_runs + 1;
       const battingUser = oppNow.name;

@@ -695,7 +695,7 @@ window.startInning2 = function() {
 function run_probability(BALLS, battingRating, bowlingRating, battingSkills, bowlingSkills, mood) {
   // Placeholder: Implement real logic using ratings, skills, mood, BALLS for probability distribution
   // e.g., weighted random based on (battingRating - bowlingRating) + skill bonuses
-  const r = 8;//Math.floor(Math.random() * 10);
+  Math.floor(Math.random() * 10);
   return r; // 0-9 as per spec
 }
 

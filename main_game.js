@@ -345,7 +345,7 @@ showInningsChangePopup(targetRuns, battingUser, post);
       }
     }
 
-    if ((updatedUser.BALLS || 0) >= 12) { // Changed to 12 for testing
+    if ((updatedUser.BALLS || 0) >= 120) { // Changed to 12 for testing
       if (post.play === 'inning1') {
         const targetRuns = updatedUser.total_runs + 1;
 const battingUser = updatedUser.name;
@@ -603,7 +603,7 @@ function displayScorecard(userData, opponentData, play) {
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
     const chasing = (opponentData.total_runs || 0);
-    const ballsLeft = Math.max(12 - (userData.BALLS || 0), 0);
+    const ballsLeft = Math.max(120 - (userData.BALLS || 0), 0);
     const runsRequired = Math.max(chasing - (userData.total_runs || 0), 0);
     const rrr = ballsLeft > 0 ? ((runsRequired / ballsLeft) * 6).toFixed(2) : '0.00';
     html += ` Chasing: ${chasing} (RRR: ${rrr})`;
@@ -692,11 +692,84 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
-function run_probability(BALLS, battingRating, bowlingRating, battingSkills, bowlingSkills, mood) {
-  // Placeholder: Implement real logic using ratings, skills, mood, BALLS for probability distribution
-  // e.g., weighted random based on (battingRating - bowlingRating) + skill bonuses
-  r=Math.floor(Math.random() * 10);
-  return r; // 0-9 as per spec
+function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowlingSkill, mood) {
+  // Tunable parameters
+  const P = {
+    ratingScale: 0.01,
+    inningsBalls: 120,
+    phaseBoundaries: { powerplayMax: 30, deathStart: 90 },
+    skillBoost: { powerplay: 1.15, striker: 1.08, finisher: 1.18, other: 1.0 },
+    bowlingSkillPen: { powerplay: 1.08, economical: 1.12, death: 1.15, other: 1.0 },
+    moodMod: { def: -0.20, strike: 0.10, stroke: 0.22 },
+    phaseModifiers: { powerplay: 0.12, middle: 0.00, death: 0.10 },
+    baseLogit: { W: -1.1, dot: 0.1, one: 1.0, two: 0.6, three: 0.2, four: 0.5, six: -0.3 },
+    difficultyScale: 3.5,
+    randomness: 0.22
+  };
+
+  // Determine match phase
+  let phase = "middle";
+  if (BALLS <= P.phaseBoundaries.powerplayMax) phase = "powerplay";
+  else if (BALLS > P.phaseBoundaries.deathStart) phase = "death";
+
+  // Normalized ratings
+  const br = battingRating * P.ratingScale;
+  const bo = bowlingRating * P.ratingScale;
+
+  const battingSkillMultiplier = P.skillBoost[battingSkill] ?? 1.0;
+  const bowlingSkillMultiplier = P.bowlingSkillPen[bowlingSkill] ?? 1.0;
+
+  let battingPower = br * battingSkillMultiplier;
+  let bowlingPressure = bo * bowlingSkillMultiplier;
+
+  // Apply mood + phase effects
+  battingPower += (P.moodMod[mood] ?? 0);
+  battingPower += (P.phaseModifiers[phase] ?? 0);
+
+  const netAdv = battingPower - bowlingPressure;
+  const advLogit = netAdv * P.difficultyScale;
+
+  // Base logits adjusted by advantage
+  const base = P.baseLogit;
+  const logits = {
+    W: base.W - Math.max(0, advLogit * 0.5),
+    dot: base.dot - advLogit * 0.3,
+    one: base.one + advLogit * 0.25,
+    two: base.two + advLogit * 0.2,
+    three: base.three + advLogit * 0.1,
+    four: base.four + advLogit * 0.35,
+    six: base.six + advLogit * 0.55
+  };
+
+  // Add randomness
+  for (let k in logits) logits[k] += (Math.random() - 0.5) * P.randomness;
+
+  // Softmax to probabilities
+  const keys = Object.keys(logits);
+  const exps = keys.map(k => Math.exp(logits[k]));
+  const sumExp = exps.reduce((a, b) => a + b, 0);
+  const probs = {};
+  keys.forEach((k, i) => probs[k] = exps[i] / sumExp);
+
+  // Map to numeric outcomes
+  const outcomes = {
+    W: 7,  // wicket
+    dot: 0,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    six: 6
+  };
+
+  // Randomly sample based on probabilities
+  const r = Math.random();
+  let cum = 0;
+  for (const [k, val] of Object.entries(probs)) {
+    cum += val;
+    if (r <= cum) return outcomes[k];
+  }
+  return 0; // fallback safety
 }
 
 ///// END OF FILE /////    

@@ -187,21 +187,16 @@ window.setChoice = function(choice) {
 };
 
 function handleInningState() {
-  // Add this check at the top to prevent UI updates after game ends
+  console.log('handleInningState called, currentUserKey:', currentUserKey, 'gameData.play:', gameData.play); // Add logging
   if (gameData.play !== 'inning1' && gameData.play !== 'inning2') {
-    // Game has ended, hide all UI and show end screen if not already
-    gameContainer.style.display = 'none';
-    endGameUI.style.display = 'block';
-    return;
-  }
-
-  // Rest of the function remains the same...
-  if (gameData.play === 'inning2' && !gameData.chance?.player1) {
-    scorecardEl.innerHTML = "<div>Preparing second innings...</div>";
+    console.log('Game ended, calling endGame'); // Add logging
+    const winner = gameData.winner || 'tie';
+    endGame(winner);
     return;
   }
 
   if (!currentUserKey) {
+    console.log('No currentUserKey, waiting'); // Add logging
     scorecardEl.innerHTML = `<div>Waiting for players...</div>`;
     battingUIEl.style.display = 'none';
     bowlingUIEl.style.display = 'none';
@@ -211,7 +206,9 @@ function handleInningState() {
   const userNode = gameData[currentUserKey] || {};
   const opponentNode = gameData[opponentKey] || {};
   const userChance = gameData.chance ? gameData.chance[currentUserKey] : undefined;
+  console.log('userChance:', userChance); // Add logging
   if (!userChance) {
+    console.log('No userChance, waiting for toss'); // Add logging
     scorecardEl.innerHTML = `<div>Waiting for toss choice...</div>`;
     battingUIEl.style.display = 'none';
     bowlingUIEl.style.display = 'none';
@@ -219,6 +216,7 @@ function handleInningState() {
   }
 
   if (userChance === 'bat') {
+    console.log('Calling handleBatting'); // Add logging
     battingUIEl.style.display = 'block';
     bowlingUIEl.style.display = 'none';
     const battingCount = Object.keys(userNode.batting || {}).length;
@@ -227,6 +225,7 @@ function handleInningState() {
     }
     handleBatting(userNode, opponentNode, gameData);
   } else {
+    console.log('Calling handleBowling'); // Add logging
     battingUIEl.style.display = 'none';
     bowlingUIEl.style.display = 'block';
     if (!userNode.baller || userNode.baller === '') {
@@ -240,12 +239,11 @@ function handleInningState() {
     currentOverBalls = gameData.currentOver;
   }
 }
-
 ///// BATTING LOGIC /////
 ///// BATTING LOGIC /////
 function handleBatting(userData, opponentData, currentGameData) {
   displayScorecard(userData, opponentData, currentGameData.play);
-  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.join(' ')}`;
+  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}`;
   document.getElementById('defenceBtn').onclick = () => playBall('def');
   document.getElementById('strikeBtn').onclick = () => playBall('strike');
   document.getElementById('strokeBtn').onclick = () => playBall('stroke');
@@ -329,146 +327,95 @@ function handleBatting(userData, opponentData, currentGameData) {
     const updatedUser = post[currentUserKey] || {};
     const updatedOpp = post[opponentKey] || {};
 
-    if (post.play === 'inning2' && (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0)) {
-      endGame(currentUserKey);
-      return;
-    }
+    // In handleBatting, when calling endGame:
+if (post.play === 'inning2' && (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0)) {
+  await gameRef.update({ winner: currentUserKey });
+  endGame(currentUserKey);
+  return;
+}
 
     if ((updatedUser.wicket || 0) >= 10) {
       if (post.play === 'inning1') {
         const targetRuns = updatedUser.total_runs + 1;
-        const battingUser = updatedUser.name;
-        showInningsChangePopup(targetRuns, battingUser, post);
+const battingUser = updatedUser.name;
+showInningsChangePopup(targetRuns, battingUser, post);
       } else {
+        await gameRef.update({ winner: opponentKey });
         endGame(opponentKey);
       }
     }
 
-    if ((updatedUser.BALLS || 0) >= 12) { // Changed to 12 for 2 overs
+    if ((updatedUser.BALLS || 0) >= 12) { // Changed to 12 for testing
       if (post.play === 'inning1') {
         const targetRuns = updatedUser.total_runs + 1;
-        const battingUser = updatedUser.name;
-        showInningsChangePopup(targetRuns, battingUser, post);
+const battingUser = updatedUser.name;
+showInningsChangePopup(targetRuns, battingUser, post);
       } else {
         const winner = (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0) ? currentUserKey : (updatedUser.total_runs || 0) < (updatedOpp.total_runs || 0) ? opponentKey : 'tie';
+        await gameRef.update({ winner });
         endGame(winner);
       }
     }
   }
 }
+
 ///// BOWLING LOGIC /////
-function handleBowling(userData, opponentData, currentGameData) {
+async function handleBowling(userData, opponentData, currentGameData) {
+  console.log('handleBowling started');
   displayScorecard(opponentData, userData, currentGameData.play);
-  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.join(' ')}`;
-  document.getElementById('defenceBtn').onclick = () => playBallBowling('def');
-  document.getElementById('strikeBtn').onclick = () => playBallBowling('strike');
-  document.getElementById('strokeBtn').onclick = () => playBallBowling('stroke');
+  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}`;
 
-  async function playBallBowling(mood) {
-    const latestSnap = await gameRef.once('value');
-    const game = latestSnap.val() || {};
-    const userNode = game[currentUserKey] || {};
-    const opponentNode = game[opponentKey] || {};
-    const batsman = Object.keys(opponentNode.batting || {}).find(b => opponentNode.batting[b].strike);
-    const bowler = userNode.baller;
-    if (!batsman || !bowler) return;
+  // Add end conditions here (from playBallBowling)
+  const oppNow = currentGameData[opponentKey] || {};
+  const userNow = currentGameData[currentUserKey] || {};
 
-    const batsmanP = opponentNode.playing11?.[batsman] || {};
-    const bowlerP = userNode.playing11?.[bowler] || {};
-    const run = run_probability(
-      opponentNode.BALLS || 0,
-      batsmanP.battingRating,
-      bowlerP.bowlingRating,
-      batsmanP.battingSkills,
-      bowlerP.bowlingSkills || bowlerP.battingSkills, // Fixed: Use bowlingSkills
-      mood
-    );
-
-    const updates = {};
-    const oppRoot = `/${opponentKey}`;
-    const userRoot = `/${currentUserKey}`;
-
-    if (run === 9) {
-      updates[`${oppRoot}/total_runs`] = (opponentNode.total_runs || 0) + 1;
-      updates[`${oppRoot}/playing11/${batsman}/runs_made`] = (batsmanP.runs_made || 0) + 1;
-    } else if (run === 1) {
-      updates[`${oppRoot}/total_runs`] = (opponentNode.total_runs || 0) + 1;
-      updates[`${oppRoot}/playing11/${batsman}/runs_made`] = (batsmanP.runs_made || 0) + 1;
-      updates[`${oppRoot}/batting/${batsman}/strike`] = false;
-      const other = Object.keys(opponentNode.batting || {}).find(b => b !== batsman);
-      if (other) updates[`${oppRoot}/batting/${other}/strike`] = true;
-    } else if ([2, 3].includes(run)) {
-      updates[`${oppRoot}/total_runs`] = (opponentNode.total_runs || 0) + run;
-      updates[`${oppRoot}/playing11/${batsman}/runs_made`] = (batsmanP.runs_made || 0) + run;
-      if (run % 2 === 1) {
-        updates[`${oppRoot}/batting/${batsman}/strike`] = false;
-        const other = Object.keys(opponentNode.batting || {}).find(b => b !== batsman);
-        if (other) updates[`${oppRoot}/batting/${other}/strike`] = true;
-      }
-    } else if (run === 4) {
-      updates[`${oppRoot}/total_runs`] = (opponentNode.total_runs || 0) + 4;
-      updates[`${oppRoot}/playing11/${batsman}/runs_made`] = (batsmanP.runs_made || 0) + 4;
-      updates[`${oppRoot}/playing11/${batsman}/four`] = (batsmanP.four || 0) + 1;
-    } else if (run === 6) {
-      updates[`${oppRoot}/total_runs`] = (opponentNode.total_runs || 0) + 6;
-      updates[`${oppRoot}/playing11/${batsman}/runs_made`] = (batsmanP.runs_made || 0) + 6;
-      updates[`${oppRoot}/playing11/${batsman}/six`] = (batsmanP.six || 0) + 1;
-    } else if (run === 7 || run === 8) {
-      updates[`${oppRoot}/playing11/${batsman}/inning`] = 1;
-      updates[`${oppRoot}/batters/${batsman}`] = { ...(batsmanP || {}) };
-      updates[`${oppRoot}/wicket`] = (opponentNode.wicket || 0) + 1;
-      updates[`${userRoot}/playing11/${bowler}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
+  if ((oppNow.wicket || 0) >= 10) {
+    if (currentGameData.play === 'inning1') {
+      const targetRuns = oppNow.total_runs + 1;
+      const battingUser = oppNow.name;
+      showInningsChangePopup(targetRuns, battingUser, currentGameData);
+      return;
+    } else {
+      await gameRef.update({ winner: currentUserKey });
+      endGame(currentUserKey);
+      return;
     }
+  }
 
-    if (run !== 9) {
-      updates[`${oppRoot}/BALLS`] = (opponentNode.BALLS || 0) + 1;
-      updates[`${oppRoot}/playing11/${batsman}/ball_faced`] = (batsmanP.ball_faced || 0) + 1;
-      updates[`${userRoot}/playing11/${bowler}/ball_thrown`] = (bowlerP.ball_thrown || 0) + 1;
-      currentOverBalls.push(run);
-      updates['currentOver'] = currentOverBalls;
+  if ((oppNow.BALLS || 0) >= 60) {
+    if (currentGameData.play === 'inning1') {
+      const targetRuns = oppNow.total_runs + 1;
+      const battingUser = oppNow.name;
+      showInningsChangePopup(targetRuns, battingUser, currentGameData);
+      return;
+    } else {
+      const winner = (oppNow.total_runs || 0) > (userNow.total_runs || 0) ? opponentKey : currentUserKey;
+      await gameRef.update({ winner });
+      endGame(winner);
+      return;
     }
+  }
 
-    await gameRef.update(updates);
-
-    const postSnap = await gameRef.once('value');
-    const postGame = postSnap.val() || {};
-    const oppNow = postGame[opponentKey] || {};
-    const userNow = postGame[currentUserKey] || {};
-
-    const ballsNow = oppNow.BALLS || 0;
-    if (ballsNow % 6 === 0 && run !== 9) {
-      currentOverBalls = [];
-      await gameRef.update({ currentOver: [], [`${currentUserKey}/baller`]: '' });
-      bowlerSelection(userNow);
-    }
-
-        if ((oppNow.BALLS || 0) >= 12) {
-      if (postGame.play === 'inning1') {
-        // Show popup
-        const targetRuns = oppNow.total_runs + 1;
-        const battingUser = oppNow.name;
-        showInningsChangePopup(targetRuns, battingUser);
-        return;
-      } else {
-        const winner =
-          (oppNow.total_runs || 0) > (userNow.total_runs || 0) ?
-          opponentKey :
-          currentUserKey;
-        endGame(winner);
-        return;
-      }
-    }
-
-    if (postGame.play === 'inning2' && (oppNow.total_runs || 0) > (userNow.total_runs || 0)) {
+  if (currentGameData.play === 'inning2') {
+    if ((oppNow.total_runs || 0) > (userNow.total_runs || 0)) {
+      await gameRef.update({ winner: opponentKey });
       endGame(opponentKey);
       return;
     }
-
-    displayScorecard(oppNow, userNow, postGame.play);
-    currentOverEl.innerHTML = `Current Over: ${currentOverBalls.join(' ')}`;
   }
-}
 
+  // Over completion logic - only if baller is empty and over just completed
+  const ballsNow = oppNow.BALLS || 0;
+  if (ballsNow % 6 === 0 && ballsNow > 0 && (!userNow.baller || userNow.baller === '')) {
+    console.log('Over completed, calling bowlerSelection');
+    currentOverBalls = [];
+    await gameRef.update({ currentOver: [] });
+    bowlerSelection(userNow);
+  }
+
+  displayScorecard(oppNow, userNow, currentGameData.play);
+  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.join(' ')}`;
+}
 // Batsman selection
 function batsmanSelection(userData) {
   // Make selectBatsman global at the start
@@ -514,7 +461,7 @@ function bowlerSelection(userNode) {
   let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Ball Thrown</th><th>Runs Faced</th><th>Wickets Taken</th><th>Select</th></tr>`;
   Object.keys(playing11).forEach(player => {
     const p = playing11[player];
-    if (p.type && p.type.toLowerCase() === 'batter') return; // Exclude pure batsmen
+    //if (p.type && p.type.toLowerCase() === 'batter') return; // Exclude pure batsmen
     html += `<tr><td>${player}</td><td>${p.bowlingRating || '-'}</td><td>${p.bowlingSkills || p.battingSkills || '-'}</td><td>${p.ball_thrown || 0}</td><td>${p.runs_faced || 0}</td><td>${p.wicket_taken || 0}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
   });
   html += `</table><div style="text-align:right"><button onclick="selectBowler()">Play</button></div>`;
@@ -532,49 +479,16 @@ function bowlerSelection(userNode) {
 
 async function endGame(winnerKey) {
   console.log('endGame called with winner:', winnerKey);
-  // Force hide game UI and show end UI
-  gameContainer.style.display = 'none';
-  endGameUI.style.display = 'block';
-  endGameUI.style.visibility = 'visible'; // Fix: Force visibility
-  console.log('UI updated: gameContainer hidden, endGameUI shown and visible');
 
-  document.getElementById('winnerText').innerHTML = `${winnerKey} WON the game!`;
+  // Determine winner/loser
+  const isWinner = currentUserKey === winnerKey;
+  const alertMessage = isWinner ? 'YOU WON!' : 'YOU LOST!';
+  alert(alertMessage);  // Alert for winner/loser
 
-  // Populate scoreboard
-  const snapshot = (await gameRef.once('value')).val() || {};
-  console.log('Snapshot for scoreboard:', snapshot);
-  let scoreboardHTML = '<h3>Scoreboard</h3>';
-  ['player1', 'player2'].forEach(player => {
-    const data = snapshot[player] || {};
-    scoreboardHTML += `<h4>${data.name || player}</h4>`;
+  // Show first scorecard (player1)
+  showPlayerScorecard('player1', winnerKey);
 
-    // Batsmen (only those with balls_faced > 0)
-    scoreboardHTML += `<h5>Batsmen</h5><table><tr><th>Batsman</th><th>Runs</th><th>Balls</th><th>SR</th></tr>`;
-    const p11 = data.playing11 || {};
-    Object.keys(p11).forEach(b => {
-      if ((p11[b].ball_faced || 0) > 0) {
-        const runs = p11[b].runs_made || 0;
-        const balls = p11[b].ball_faced || 0;
-        const sr = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00';
-        scoreboardHTML += `<tr><td>${b}</td><td>${runs}</td><td>${balls}</td><td>${sr}</td></tr>`;
-      }
-    });
-    scoreboardHTML += '</table>';
-
-    // Bowlers
-    scoreboardHTML += `<h5>Bowlers</h5><table><tr><th>Bowler</th><th>Wickets</th></tr>`;
-    Object.keys(p11).forEach(b => {
-      const wickets = p11[b].wicket_taken || 0;
-      if (wickets > 0) {
-        scorecardHTML += `<tr><td>${b}</td><td>${wickets}</td></tr>`;
-      }
-    });
-    scorecardHTML += '</table>';
-  });
-  document.getElementById('scoreboard').innerHTML = scoreboardHTML;
-  console.log('Scoreboard populated');
-
-  // Update user stats
+  // Update user stats (but don't delete yet)
   try {
     const playersToUpdate = [snapshot.player1, snapshot.player2];
     for (const p of playersToUpdate) {
@@ -605,17 +519,86 @@ async function endGame(winnerKey) {
   } catch (e) {
     console.warn('Error updating user stats:', e);
   }
-
-  document.getElementById('okBtn').onclick = () => {
-    window.location.href = 'index.html';
-  };
-  console.log('OK button set');
 }
+
+// Function to show player scorecard
+function showPlayerScorecard(playerKey, winnerKey) {
+  const snapshot = gameData;  // Use current gameData
+  const data = snapshot[playerKey] || {};
+  const isWinner = playerKey === winnerKey;
+  const status = isWinner ? 'WON' : 'LOST';
+  let html = `<h3>${playerKey} (${data.name || playerKey}) ${status}</h3>`;
+  
+  // Batsmen
+  html += `<h5>Batsmen</h5><table><tr><th>Batsman</th><th>Runs</th><th>Balls</th><th>SR</th></tr>`;
+  const p11 = data.playing11 || {};
+  let totalRuns = 0, totalBalls = 0;
+  Object.keys(p11).forEach(b => {
+    if ((p11[b].ball_faced || 0) > 0) {
+      const runs = p11[b].runs_made || 0;
+      const balls = p11[b].ball_faced || 0;
+      const sr = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00';
+      html += `<tr><td>${b}</td><td>${runs}</td><td>${balls}</td><td>${sr}</td></tr>`;
+      totalRuns += runs;
+      totalBalls += balls;
+    }
+  });
+  const totalSR = totalBalls > 0 ? ((totalRuns / totalBalls) * 100).toFixed(2) : '0.00';
+  html += `<tr style="font-weight:bold;"><td>Total</td><td>${totalRuns}</td><td>${totalBalls}</td><td>${totalSR}</td></tr>`;
+  html += '</table>';
+  
+  // Bowlers
+  html += `<h5>Bowlers</h5><table><tr><th>Bowler</th><th>Wickets</th><th>Balls Thrown</th><th>Runs Faced</th></tr>`;
+  Object.keys(p11).forEach(b => {
+    const wickets = p11[b].wicket_taken || 0;
+    const ballsThrown = p11[b].ball_thrown || 0;
+    const runsFaced = p11[b].runs_faced || 0;
+    if (wickets > 0 || ballsThrown > 0) {
+      html += `<tr><td>${b}</td><td>${wickets}</td><td>${ballsThrown}</td><td>${runsFaced}</td></tr>`;
+    }
+  });
+  html += '</table>';
+
+  const nextButton = playerKey === 'player1' ? '<button onclick="showPlayerScorecard(\'player2\', \'' + winnerKey + '\')">Next</button>' : '<button onclick="confirmEnd()">OK</button>';
+  html += nextButton;
+
+  showPopup('Scorecard', html);
+}
+
+// Function to confirm end (track both OKs)
+window.confirmEnd = async function() {
+  const okRef = database.ref(`game/okClicks/${currentUserKey}`);
+  await okRef.set(true);
+  
+  // Check if both have clicked OK
+  const okClicks = (await database.ref('game/okClicks').once('value')).val() || {};
+  if (okClicks.player1 && okClicks.player2) {
+    // Both OK, delete data and redirect
+    await gameRef.remove();
+    console.log('Game node deleted for next game');
+    window.location.href = 'index.html';
+  } else {
+    // Wait for other player
+    showPopup('Waiting', 'Waiting for other player to confirm...');
+  }
+};
+// New global function for OK click
+window.endMatch = async function() {
+  try {
+    await gameRef.remove();
+    console.log('Game node deleted for next game');
+  } catch (e) {
+    console.warn('Error deleting game:', e);
+  }
+  window.location.href = 'index.html';
+};
+
+
 ///// UI HELPERS /////
 function displayScorecard(userData, opponentData, play) {
   userData = userData || {};
   opponentData = opponentData || {};
-  const overs = Math.floor((userData.BALLS || 0) / 6);
+  const overs = String(Math.floor((userData.BALLS || 0) / 6)) +"."+ String(userData.BALLS%6);
   const runRate = (userData.BALLS || 0) > 0 ? ((userData.total_runs || 0) / (userData.BALLS || 0) * 6).toFixed(2) : '0.00';
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
@@ -642,6 +625,13 @@ function displayScorecard(userData, opponentData, play) {
 function showPopup(title, body) {
   popupBody.innerHTML = `<h2>${title}</h2>${body}`;
   popupEl.style.display = 'flex';
+  //popupEl.style.position = 'fixed';
+  popupEl.style.top = '5%'; // Changed to 5% to avoid top cut
+  popupEl.style.left = '50%';
+  popupEl.style.transform = 'translateX(-50%)';
+  popupEl.style.maxHeight = '100vh'; // Increased to 90vh
+  popupEl.style.overflowY = 'auto';
+  popupEl.style.zIndex = '1000';
 }
 
 function hidePopup() {
@@ -649,7 +639,11 @@ function hidePopup() {
 }
 
 window.showInningsChangePopup = function(targetRuns, battingUser, snapshot) {
-  let scorecardHTML = '<div style="max-height: 400px; overflow-y: auto;"><h4>Scorecard</h4>'; // Declare at very top
+    console.log('showInningsChangePopup called for:', battingUser);
+    // Reset current over at inning end
+    currentOverBalls = [];
+    gameRef.update({ currentOver: [] });
+  let scorecardHTML = '<div style="max-height: 400px; overflow-y: auto;"><h4>Scorecard</h4>';
   ['player1', 'player2'].forEach(player => {
     const data = snapshot[player] || {};
     scorecardHTML += `<h5>${data.name || player}</h5>`;
@@ -658,7 +652,7 @@ window.showInningsChangePopup = function(targetRuns, battingUser, snapshot) {
     scorecardHTML += `<table><tr><th>Batsman</th><th>Runs</th><th>Balls</th><th>SR</th></tr>`;
     const p11 = data.playing11 || {};
     Object.keys(p11).forEach(b => {
-      if ((p11[b].ball_faced || 0) > 0) { // Filter: only played batsmen
+      if ((p11[b].ball_faced || 0) > 0) {
         const runs = p11[b].runs_made || 0;
         const balls = p11[b].ball_faced || 0;
         const sr = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00';
@@ -667,12 +661,14 @@ window.showInningsChangePopup = function(targetRuns, battingUser, snapshot) {
     });
     scorecardHTML += '</table>';
 
-    // Bowlers
-    scorecardHTML += `<table><tr><th>Bowler</th><th>Wickets</th></tr>`;
+    // Bowlers (add balls_thrown and runs_faced)
+    scorecardHTML += `<table><tr><th>Bowler</th><th>Wickets</th><th>Balls Thrown</th><th>Runs Faced</th></tr>`;
     Object.keys(p11).forEach(b => {
       const wickets = p11[b].wicket_taken || 0;
-      if (wickets > 0) {
-        scorecardHTML += `<tr><td>${b}</td><td>${wickets}</td></tr>`;
+      const ballsThrown = p11[b].ball_thrown || 0;
+      const runsFaced = p11[b].runs_faced || 0;
+      if (wickets > 0 || ballsThrown > 0) { // Show if any stat
+        scorecardHTML += `<tr><td>${b}</td><td>${wickets}</td><td>${ballsThrown}</td><td>${runsFaced}</td></tr>`;
       }
     });
     scorecardHTML += '</table>';
@@ -699,8 +695,8 @@ window.startInning2 = function() {
 function run_probability(BALLS, battingRating, bowlingRating, battingSkills, bowlingSkills, mood) {
   // Placeholder: Implement real logic using ratings, skills, mood, BALLS for probability distribution
   // e.g., weighted random based on (battingRating - bowlingRating) + skill bonuses
-  const r = Math.floor(Math.random() * 10);
+  const r = 8;//Math.floor(Math.random() * 10);
   return r; // 0-9 as per spec
 }
 
-///// END OF FILE /////
+///// END OF FILE /////    

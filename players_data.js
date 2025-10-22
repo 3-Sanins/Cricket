@@ -168,11 +168,19 @@ function makeCaptain(playerKey, buttonElement) {
     }
 
     const isCaptain = selectedTeam.captain === player.name;
+    const originalBatting = player.battingRating; // Original team batting rating
+    const originalBowling = player.bowlingRating; // Original team bowling rating
 
     if (isCaptain) {
-      // Remove Captain: captain="" set karo
+      // Remove Captain: captain="" set karo aur ratings ko original team values pe laao
       db.ref('users/' + playerName + '/selected_team/captain').set("").then(() => {
         selectedTeam.captain = "";
+        // Update local selectedTeam ratings back to originals
+        selectedTeam[playerKey].battingRating = originalBatting;
+        selectedTeam[playerKey].bowlingRating = originalBowling;
+        // Update DB ratings back to originals
+        db.ref('users/' + playerName + '/selected_team/' + playerKey + '/battingRating').set(originalBatting);
+        db.ref('users/' + playerName + '/selected_team/' + playerKey + '/bowlingRating').set(originalBowling);
         buttonElement.textContent = 'Make Captain'; // Button text change
         alert(`Captain removed!`);
       }).catch((error) => {
@@ -186,9 +194,15 @@ function makeCaptain(playerKey, buttonElement) {
         return;
       }
 
-      // Set captain
+      // Set captain aur ratings ko +2 karo
       db.ref('users/' + playerName + '/selected_team/captain').set(player.name).then(() => {
         selectedTeam.captain = player.name;
+        // Update local selectedTeam ratings to originals + 2
+        selectedTeam[playerKey].battingRating = originalBatting + 2;
+        selectedTeam[playerKey].bowlingRating = originalBowling + 2;
+        // Update DB ratings to originals + 2
+        db.ref('users/' + playerName + '/selected_team/' + playerKey + '/battingRating').set(originalBatting + 2);
+        db.ref('users/' + playerName + '/selected_team/' + playerKey + '/bowlingRating').set(originalBowling + 2);
         buttonElement.textContent = 'Remove Captain'; // Button text change
         alert(`${player.name} is now captain!`);
       }).catch((error) => {

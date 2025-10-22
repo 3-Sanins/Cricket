@@ -702,7 +702,8 @@ function displayScorecard(userData, opponentData, play) {
   const bowlerWickets = bowlerStats.wicket_taken || 0;
   const bowlerOvers = String(Math.floor((bowlerStats.ball_thrown || 0) / 6))+"."+(String(bowlerStats.ball_thrown%6) || "0");
   const bowlerInfo = `${bowlerName} (${bowlerOvers} : ${bowlerRuns} : ${bowlerWickets})`;
-  html += `<br>Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}`;
+  html += `<br>Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}(${bowlerStats.bowlingRating || 0} : ${bowlerStats.battingSkills || "NIL"} )`;
+  
 
   Object.keys(userData.batting || {}).forEach(batsman => {
     const strike = userData.batting[batsman].strike ? '● ' : '';
@@ -711,6 +712,7 @@ function displayScorecard(userData, opponentData, play) {
     const balls = p.ball_faced || 0;
     const sr = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00';
     html += `<br>${strike}${batsman}: ${runs} (${balls}, SR: ${sr})`;
+  
   });
   html += `</div>`;
   scorecardEl.innerHTML = html;
@@ -867,16 +869,16 @@ function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowl
     else probs = tables.minus10[mood];
 
     // -------------------------------
-    // Apply Abilities Buffs
+    // Apply Abilities Buffs (restricted by phase)
     // -------------------------------
     if (abilities) {
         let ab = abilities.toLowerCase();
 
-        // Powerplay basher or Finisher (only during their phase)
+        // Powerplay basher / Finisher (batsman buffs)
         if ((ab === "powerplay basher" && BALLS <= 24) ||
             (ab === "finisher" && BALLS >= 96)) {
-            probs[6] += 3;   // Six chance up
-            probs[7] -= 3;   // Out chance down
+            probs[6] += 3;
+            probs[7] -= 3;
         }
 
         // Striker
@@ -887,8 +889,15 @@ function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowl
             probs[7] -= 3;
         }
 
-        // Economical
-        if (ab === "economical") {
+        // Powerplay bowler → 1–4 overs only
+        if (ab === "powerplay bowler" && BALLS <= 36) {
+            probs[7] += 4;
+            probs[4] -= 2;
+            probs[6] -= 2;
+        }
+
+        // Economical → overs 6–15 only
+        if (ab === "economical" && BALLS >= 31 && BALLS <= 90) {
             probs[7] -= 5;
             probs[4] -= 5;
             probs[6] -= 5;
@@ -896,8 +905,8 @@ function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowl
             probs[1] += 8;
         }
 
-        // Powerplay or Death Bowler
-        if (ab === "powerplay bowler" || ab === "death bowler") {
+        // Death bowler → overs 16–20 only
+        if (ab === "death bowler" && BALLS >= 91) {
             probs[7] += 4;
             probs[4] -= 2;
             probs[6] -= 2;
@@ -907,9 +916,9 @@ function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowl
     // -------------------------------
     // Slightly increase OUT probability globally
     // -------------------------------
-    probs[7] += 1;
+    //probs[7] += 1;
 
-    // Normalize probabilities (to keep total = 100)
+    // Normalize probabilities
     let total = Object.values(probs).reduce((a, b) => a + b, 0);
     for (let k in probs) probs[k] = (probs[k] / total) * 100;
 
@@ -926,6 +935,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowl
 
     return 0; // fallback
 }
+
 
 
 ///// END OF FILE /////    

@@ -259,7 +259,7 @@ if (battingOverEl) {
 } else {
   console.warn('currentOverBatting element not found');
 }
-  document.getElementById('defenceBtn').onclick = () => playBall('def');
+  document.getElementById('defenceBtn').onclick = () => playBall('defence');
   document.getElementById('strikeBtn').onclick = () => playBall('strike');
   document.getElementById('strokeBtn').onclick = () => playBall('stroke');
 

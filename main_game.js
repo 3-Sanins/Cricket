@@ -243,127 +243,194 @@ function handleInningState() {
 ///// BATTING LOGIC /////
 function handleBatting(userData, opponentData, currentGameData) {
   displayScorecard(userData, opponentData, currentGameData.play);
-  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}`;
+  
+  // Add bowler info
+const bowlerName = opponentData.baller || 'Unknown';
+console.log('Bowler name:', bowlerName, 'opponentData:', opponentData);
+const bowlerStats = opponentData.playing11?.[bowlerName] || {};
+const bowlerRuns = bowlerStats.runs_faced || 0;
+const bowlerWickets = bowlerStats.wicket_taken || 0;
+const bowlerOvers = Math.floor((bowlerStats.ball_thrown || 0) / 6);
+const bowlerInfo = `${bowlerName} (${bowlerOvers} : ${bowlerRuns} : ${bowlerWickets})`;
+const battingOverEl = document.getElementById('currentOverBatting');
+if (battingOverEl) {
+  battingOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}`;
+  console.log('Batting over updated');
+} else {
+  console.warn('currentOverBatting element not found');
+}
   document.getElementById('defenceBtn').onclick = () => playBall('def');
   document.getElementById('strikeBtn').onclick = () => playBall('strike');
   document.getElementById('strokeBtn').onclick = () => playBall('stroke');
 
-  async function playBall(mood) {
-    const latestGame = (await gameRef.once('value')).val();
-    const userNode = latestGame[currentUserKey] || {};
-    const opponentNode = latestGame[opponentKey] || {};
-    const battingObj = userNode.batting || {};
-    const strikerName = Object.keys(battingObj).find(b => battingObj[b].strike);
-    const bowlerName = opponentNode.baller;
-    if (!strikerName || !bowlerName) return;
+async function playBall(mood) {
+  const latestGame = (await gameRef.once('value')).val();
+  const userNode = latestGame[currentUserKey] || {};
+  const opponentNode = latestGame[opponentKey] || {};
+  const battingObj = userNode.batting || {};
+  const strikerName = Object.keys(battingObj).find(b => battingObj[b].strike);
+  const bowlerName = opponentNode.baller;
+  if (!strikerName || !bowlerName) return;
 
-    const batsmanP = userNode.playing11?.[strikerName] || {};
-    const bowlerP = opponentNode.playing11?.[bowlerName] || {};
-    const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood);
+  const batsmanP = userNode.playing11?.[strikerName] || {};
+  const bowlerP = opponentNode.playing11?.[bowlerName] || {};
+  const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood);
 
-    const updates = {};
-    const userRoot = `/${currentUserKey}`;
-    const oppRoot = `/${opponentKey}`;
+  const updates = {};
+  const userRoot = `/${currentUserKey}`;
+  const oppRoot = `/${opponentKey}`;
 
-    if (run === 9) {
-      updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 1;
-      updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 1; // Fix: Update bowler's runs_faced
-    } else if (run === 1) {
-      updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 1;
-      updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 1; // Fix
+  if (run === 9) {
+    updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 1;
+    updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 1;
+  } else if (run === 1) {
+    updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 1;
+    updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 1;
+    updates[`${userRoot}/batting/${strikerName}/strike`] = false;
+    const other = Object.keys(battingObj).find(b => b !== strikerName);
+    if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
+    // Confidence boost for batsman
+    const newRuns = (batsmanP.runs_made || 0) + 1;
+    if (newRuns === 50 || newRuns === 100) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached ${newRuns} runs! His confidence is boosted.`);
+    }
+  } else if ([2, 3].includes(run)) {
+    updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + run;
+    updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + run;
+    updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + run;
+    if (run % 2 === 1) {
       updates[`${userRoot}/batting/${strikerName}/strike`] = false;
       const other = Object.keys(battingObj).find(b => b !== strikerName);
       if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
-    } else if ([2, 3].includes(run)) {
-      updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + run;
-      updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + run;
-      updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + run; // Fix
-      if (run % 2 === 1) {
-        updates[`${userRoot}/batting/${strikerName}/strike`] = false;
-        const other = Object.keys(battingObj).find(b => b !== strikerName);
-        if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
-      }
-    } else if (run === 4) {
-      updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 4;
-      updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 4;
-      updates[`${userRoot}/playing11/${strikerName}/four`] = (batsmanP.four || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 4; // Fix
-    } else if (run === 6) {
-      updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 6;
-      updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 6;
-      updates[`${userRoot}/playing11/${strikerName}/six`] = (batsmanP.six || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 6; // Fix
-    } else if (run === 7 || run === 8) {
-      updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
-      updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
-      updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
-      updates[`${userRoot}/batting/${strikerName}`] = null;
-      const remainingBatsmen = Object.keys(battingObj).filter(b => b !== strikerName);
-      if (remainingBatsmen.length > 0) {
-        updates[`${userRoot}/batting/${remainingBatsmen[0]}/strike`] = true;
-      }
     }
-
-    if (run !== 9) {
-      updates[`${userRoot}/BALLS`] = (userNode.BALLS || 0) + 1;
-      updates[`${userRoot}/playing11/${strikerName}/ball_faced`] = (batsmanP.ball_faced || 0) + 1;
-      updates[`${oppRoot}/playing11/${bowlerName}/ball_thrown`] = (bowlerP.ball_thrown || 0) + 1;
-      currentOverBalls.push(run);
-      updates['currentOver'] = currentOverBalls;
+    // Confidence boost for batsman
+    const newRuns = (batsmanP.runs_made || 0) + run;
+    if (newRuns >= 50 && (batsmanP.runs_made || 0) < 50) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 50 runs! His confidence is boosted.`);
     }
-
-    await gameRef.update(updates);
-
-    const newBalls = (userNode.BALLS || 0) + (run !== 9 ? 1 : 0);
-    if (newBalls % 6 === 0 && run !== 9) {
-      currentOverBalls = [];
-      await gameRef.update({ currentOver: [], [`${opponentKey}/baller`]: '' });
+    if (newRuns >= 100 && (batsmanP.runs_made || 0) < 100) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 100 runs! His confidence is boosted.`);
     }
-
-    const post = (await gameRef.once('value')).val();
-    const updatedUser = post[currentUserKey] || {};
-    const updatedOpp = post[opponentKey] || {};
-
-    // In handleBatting, when calling endGame:
-if (post.play === 'inning2' && (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0)) {
-  await gameRef.update({ winner: currentUserKey });
-  endGame(currentUserKey);
-  return;
-}
-
-    if ((updatedUser.wicket || 0) >= 10) {
-      if (post.play === 'inning1') {
-        const targetRuns = updatedUser.total_runs + 1;
-const battingUser = updatedUser.name;
-showInningsChangePopup(targetRuns, battingUser, post);
-      } else {
-        await gameRef.update({ winner: opponentKey });
-        endGame(opponentKey);
-      }
+  } else if (run === 4) {
+    updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 4;
+    updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 4;
+    updates[`${userRoot}/playing11/${strikerName}/four`] = (batsmanP.four || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 4;
+    // Confidence boost for batsman
+    const newRuns = (batsmanP.runs_made || 0) + 4;
+    if (newRuns >= 50 && (batsmanP.runs_made || 0) < 50) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 50 runs! His confidence is boosted.`);
     }
+    if (newRuns >= 100 && (batsmanP.runs_made || 0) < 100) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 100 runs! His confidence is boosted.`);
+    }
+  } else if (run === 6) {
+    updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 6;
+    updates[`${userRoot}/playing11/${strikerName}/runs_made`] = (batsmanP.runs_made || 0) + 6;
+    updates[`${userRoot}/playing11/${strikerName}/six`] = (batsmanP.six || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/runs_faced`] = (bowlerP.runs_faced || 0) + 6;
+    // Confidence boost for batsman
+    const newRuns = (batsmanP.runs_made || 0) + 6;
+    if (newRuns >= 50 && (batsmanP.runs_made || 0) < 50) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 50 runs! His confidence is boosted.`);
+    }
+    if (newRuns >= 100 && (batsmanP.runs_made || 0) < 100) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      alert(`${strikerName} has reached 100 runs! His confidence is boosted.`);
+    }
+  } else if (run === 7 || run === 8) {
+    updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
+    updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
+    updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 0.5;
+    updates[`${userRoot}/batting/${strikerName}`] = null;
+    const remainingBatsmen = Object.keys(battingObj).filter(b => b !== strikerName);
+    if (remainingBatsmen.length > 0) {
+      updates[`${userRoot}/batting/${remainingBatsmen[0]}/strike`] = true;
+    }
+    // Confidence boost for bowler
+    updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) + 1;
+    alert(`${bowlerName} has taken a wicket! His confidence is boosted.`);
+  }
 
-    if ((updatedUser.BALLS || 0) >= 120) { // Changed to 12 for testing
-      if (post.play === 'inning1') {
-        const targetRuns = updatedUser.total_runs + 1;
-const battingUser = updatedUser.name;
-showInningsChangePopup(targetRuns, battingUser, post);
-      } else {
-        const winner = (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0) ? currentUserKey : (updatedUser.total_runs || 0) < (updatedOpp.total_runs || 0) ? opponentKey : 'tie';
-        await gameRef.update({ winner });
-        endGame(winner);
-      }
+  if (run !== 9) {
+    updates[`${userRoot}/BALLS`] = (userNode.BALLS || 0) + 1;
+    updates[`${userRoot}/playing11/${strikerName}/ball_faced`] = (batsmanP.ball_faced || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/ball_thrown`] = (bowlerP.ball_thrown || 0) + 1;
+    currentOverBalls.push(run);
+    updates['currentOver'] = currentOverBalls;
+  }
+
+  await gameRef.update(updates);
+
+  const newBalls = (userNode.BALLS || 0) + (run !== 9 ? 1 : 0);
+  if (newBalls % 6 === 0 && run !== 9) {
+    currentOverBalls = [];
+    await gameRef.update({ currentOver: [], [`${opponentKey}/baller`]: '' });
+  }
+
+  const post = (await gameRef.once('value')).val();
+  const updatedUser = post[currentUserKey] || {};
+  const updatedOpp = post[opponentKey] || {};
+
+  if (post.play === 'inning2' && (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0)) {
+    await gameRef.update({ winner: currentUserKey });
+    endGame(currentUserKey);
+    return;
+  }
+
+  if ((updatedUser.wicket || 0) >= 10) {
+    if (post.play === 'inning1') {
+      const targetRuns = updatedUser.total_runs + 1;
+      const battingUser = updatedUser.name;
+      showInningsChangePopup(targetRuns, battingUser, post);
+    } else {
+      await gameRef.update({ winner: opponentKey });
+      endGame(opponentKey);
+    }
+  }
+
+  if ((updatedUser.BALLS || 0) >= 120) {
+    if (post.play === 'inning1') {
+      const targetRuns = updatedUser.total_runs + 1;
+      const battingUser = updatedUser.name;
+      showInningsChangePopup(targetRuns, battingUser, post);
+    } else {
+      const winner = (updatedUser.total_runs || 0) > (updatedOpp.total_runs || 0) ? currentUserKey : (updatedUser.total_runs || 0) < (updatedOpp.total_runs || 0) ? opponentKey : 'tie';
+      await gameRef.update({ winner });
+      endGame(winner);
     }
   }
 }
 
+}
+
 ///// BOWLING LOGIC /////
+let previousWickets = 0; // Global or in function scope
+
 async function handleBowling(userData, opponentData, currentGameData) {
-  console.log('handleBowling started');
-  displayScorecard(opponentData, userData, currentGameData.play);
-  currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}`;
+    displayScorecard(opponentData, userData, currentGameData.play);
+currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}`;
+
+    // Check for bowler wicket alert
+    const bowler = userData.baller;
+    if (bowler) {
+      const bowlerP = userData.playing11?.[bowler] || {};
+      const currentWickets = bowlerP.wicket_taken || 0;
+      if (currentWickets > previousWickets) {
+        alert(`${bowler} has taken a wicket! His confidence is boosted.`);
+        previousWickets = currentWickets;
+      }
+    } 
+  
 
   // Add end conditions here (from playBallBowling)
   const oppNow = currentGameData[opponentKey] || {};
@@ -461,7 +528,7 @@ function bowlerSelection(userNode) {
   let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Ball Thrown</th><th>Runs Faced</th><th>Wickets Taken</th><th>Select</th></tr>`;
   Object.keys(playing11).forEach(player => {
     const p = playing11[player];
-    //if (p.type && p.type.toLowerCase() === 'batter') return; // Exclude pure batsmen
+    if (p.ball_thrown>=30) return; 
     html += `<tr><td>${player}</td><td>${p.bowlingRating || '-'}</td><td>${p.bowlingSkills || p.battingSkills || '-'}</td><td>${p.ball_thrown || 0}</td><td>${p.runs_faced || 0}</td><td>${p.wicket_taken || 0}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
   });
   html += `</table><div style="text-align:right"><button onclick="selectBowler()">Play</button></div>`;
@@ -483,39 +550,56 @@ async function endGame(winnerKey) {
   // Determine winner/loser
   const isWinner = currentUserKey === winnerKey;
   const alertMessage = isWinner ? 'YOU WON!' : 'YOU LOST!';
-  alert(alertMessage);  // Alert for winner/loser
+  alert(alertMessage);
 
-  // Show first scorecard (player1)
+  // Show first scorecard
   showPlayerScorecard('player1', winnerKey);
 
-  // Update user stats (but don't delete yet)
+  // Update user stats
   try {
+    const snapshot = (await gameRef.once('value')).val() || {};
+    console.log('Snapshot for stats update:', snapshot);
     const playersToUpdate = [snapshot.player1, snapshot.player2];
     for (const p of playersToUpdate) {
       if (!p || !p.name) continue;
+      console.log('Updating stats for:', p.name);
       const userSnapshot = await database.ref(`users/${p.name}`).once('value');
       const userObj = userSnapshot.val() || {};
+      console.log('Current userObj:', userObj);
+      const newMatches = (userObj.matchesPlayed || 0) + 1;
+      const newWins = ((winnerKey === (p === snapshot.player1 ? 'player1' : 'player2')) ? ((userObj.wins || 0) + 1) : (userObj.wins || 0));
       await database.ref(`users/${p.name}`).update({
-        matchesPlayed: (userObj.matchesPlayed || 0) + 1,
-        wins: ((winnerKey === (p === snapshot.player1 ? 'player1' : 'player2')) ? ((userObj.wins || 0) + 1) : (userObj.wins || 0))
+        matchesPlayed: newMatches,
+        wins: newWins
       });
+      console.log('Updated matchesPlayed:', newMatches, 'wins:', newWins);
+
       const teamObj = userObj.team || {};
       const p11 = p.playing11 || {};
       for (const plName of Object.keys(p11)) {
         if (teamObj[plName]) {
           const p11Stats = p11[plName];
+          const newRuns = (teamObj[plName].runs || 0) + (p11Stats.runs_made || 0);
+          const newWickets = (teamObj[plName].wickets || 0) + (p11Stats.wicket_taken || 0);
+          const newMatchesP = (teamObj[plName].matches || 0) + 1;
+          const newFifties = (teamObj[plName].fifties || 0) + ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0);
+          const newHundreds = (teamObj[plName].hundreds || 0) + ((p11Stats.runs_made >= 100) ? 1 : 0);
+          const newHauls = (teamObj[plName]['5 wicket hauls'] || 0) + ((p11Stats.wicket_taken >= 5) ? 1 : 0);
           await database.ref(`users/${p.name}/team/${plName}`).update({
-            runs: (teamObj[plName].runs || 0) + (p11Stats.runs_made || 0),
-            wickets: (teamObj[plName].wickets || 0) + (p11Stats.wicket_taken || 0),
-            matches: (teamObj[plName].matches || 0) + 1,
-            fifties: (teamObj[plName].fifties || 0) + ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0),
-            hundreds: (teamObj[plName].hundreds || 0) + ((p11Stats.runs_made >= 100) ? 1 : 0),
-            '5 wicket hauls': (teamObj[plName]['5 wicket hauls'] || 0) + ((p11Stats.wicket_taken >= 5) ? 1 : 0)
+            runs: newRuns,
+            wickets: newWickets,
+            matches: newMatchesP,
+            fifties: newFifties,
+            hundreds: newHundreds,
+            '5 wicket hauls': newHauls
           });
+          console.log('Updated player:', plName, 'runs:', newRuns, 'wickets:', newWickets);
+        } else {
+          console.warn('Player not in team:', plName);
         }
       }
     }
-    console.log('User stats updated');
+    console.log('User stats updated successfully');
   } catch (e) {
     console.warn('Error updating user stats:', e);
   }
@@ -598,7 +682,7 @@ window.endMatch = async function() {
 function displayScorecard(userData, opponentData, play) {
   userData = userData || {};
   opponentData = opponentData || {};
-  const overs = String(Math.floor((userData.BALLS || 0) / 6)) +"."+ String(userData.BALLS%6);
+  const overs = Math.floor((userData.BALLS || 0) / 6);
   const runRate = (userData.BALLS || 0) > 0 ? ((userData.total_runs || 0) / (userData.BALLS || 0) * 6).toFixed(2) : '0.00';
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
@@ -608,8 +692,18 @@ function displayScorecard(userData, opponentData, play) {
     const rrr = ballsLeft > 0 ? ((runsRequired / ballsLeft) * 6).toFixed(2) : '0.00';
     html += ` Chasing: ${chasing} (RRR: ${rrr})`;
   }
-  const wickets = (userData.wicket || 0);
+  const wickets = play === 'inning1' ? (userData.wicket || 0) : (opponentData.playing11 ? Object.values(opponentData.playing11).reduce((sum, p) => sum + (p.wickets_taken || 0), 0) : 0);
   html += `<br>Wickets: ${wickets}`;
+
+  // Add current over and bowler info
+  const bowlerName = opponentData.baller || 'Not selected';
+  const bowlerStats = opponentData.playing11?.[bowlerName] || {};
+  const bowlerRuns = bowlerStats.runs_faced || 0;
+  const bowlerWickets = bowlerStats.wicket_taken || 0;
+  const bowlerOvers = String(Math.floor((bowlerStats.ball_thrown || 0) / 6))+"."+(String(bowlerStats.ball_thrown%6) || "0");
+  const bowlerInfo = `${bowlerName} (${bowlerOvers} : ${bowlerRuns} : ${bowlerWickets})`;
+  html += `<br>Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}`;
+
   Object.keys(userData.batting || {}).forEach(batsman => {
     const strike = userData.batting[batsman].strike ? '● ' : '';
     const p = userData.playing11 && userData.playing11[batsman] ? userData.playing11[batsman] : {};

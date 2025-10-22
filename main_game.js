@@ -350,14 +350,14 @@ async function playBall(mood) {
     updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
     updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
     updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
-    updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 0.5;
+    updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
     updates[`${userRoot}/batting/${strikerName}`] = null;
     const remainingBatsmen = Object.keys(battingObj).filter(b => b !== strikerName);
     if (remainingBatsmen.length > 0) {
       updates[`${userRoot}/batting/${remainingBatsmen[0]}/strike`] = true;
     }
     // Confidence boost for bowler
-    updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) + 1;
+    updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) + 0.5;
     alert(`${bowlerName} has taken a wicket! His confidence is boosted.`);
   }
 
@@ -682,7 +682,7 @@ window.endMatch = async function() {
 function displayScorecard(userData, opponentData, play) {
   userData = userData || {};
   opponentData = opponentData || {};
-  const overs = Math.floor((userData.BALLS || 0) / 6);
+  const overs = String(Math.floor((userData.BALLS || 0) / 6))+"."+String(userData.BALLS%6);
   const runRate = (userData.BALLS || 0) > 0 ? ((userData.total_runs || 0) / (userData.BALLS || 0) * 6).toFixed(2) : '0.00';
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {

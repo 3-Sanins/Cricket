@@ -692,7 +692,7 @@ function displayScorecard(userData, opponentData, play) {
     const rrr = ballsLeft > 0 ? ((runsRequired / ballsLeft) * 6).toFixed(2) : '0.00';
     html += ` Chasing: ${chasing} (RRR: ${rrr})`;
   }
-  const wickets = play === 'inning1' ? (userData.wicket || 0) : (opponentData.playing11 ? Object.values(opponentData.playing11).reduce((sum, p) => sum + (p.wickets_taken || 0), 0) : 0);
+  const wickets = userData.wicket || 0 //play === 'inning1' ? (userData.wicket || 0) : (opponentData.playing11 ? Object.values(opponentData.playing11).reduce((sum, p) => sum + (p.wickets_taken || 0), 0) : 0);
   html += `<br>Wickets: ${wickets}`;
 
   // Add current over and bowler info
@@ -788,153 +788,121 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
-function run_probability(BALLS, battingRating, bowlingRating, battingSkill, bowlingSkill, mood, abilities) {
-    let skillDiff = battingRating - bowlingRating;
-    let probs;
+function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowlingRole, mood, battingSkill=0, bowlingSkill=0) {
+    // Convert BALLS to over number
+    const over = Math.ceil(BALLS / 6);
 
-    // -------------------------------
-    // Base probability tables
-    // -------------------------------
-    const tables = {
-        equal: {
-            defence: {0:50,1:30,2:5,3:4,4:4,6:1,7:5},
-            strike:  {0:5,1:25,2:10,3:10,4:25,6:10,7:15},
-            stroke:  {0:20,1:10,2:10,3:5,4:30,6:25,7:20}
-        },
-        plus1: {
-            defence: {0:48,1:32,2:5,3:4,4:4,6:1,7:5},
-            strike:  {0:3,1:25,2:10,3:10,4:27,6:10,7:15},
-            stroke:  {0:19,1:10,2:10,3:6,4:30,6:25,7:20}
-        },
-        plus2_3: {
-            defence: {0:47,1:31,2:5,3:4,4:7,6:1,7:4},
-            strike:  {0:4,1:25,2:12,3:10,4:25,6:10,7:14},
-            stroke:  {0:18,1:10,2:10,3:8,4:30,6:25,7:19}
-        },
-        plus4_5: {
-            defence: {0:44,1:36,2:5,3:4,4:4,6:1,7:5},
-            strike:  {0:3,1:25,2:10,3:10,4:25,6:14,7:13},
-            stroke:  {0:20,1:10,2:10,3:5,4:30,6:28,7:17}
-        },
-        plus6_10: {
-            defence: {0:47,1:30,2:8,3:4,4:7,6:1,7:2},
-            strike:  {0:5,1:25,2:10,3:10,4:25,6:14,7:11},
-            stroke:  {0:20,1:5,2:10,3:10,4:30,6:30,7:15}
-        },
-        plus10: {
-            defence: {0:34,1:50,2:5,3:4,4:4,6:1,7:1},
-            strike:  {0:5,1:25,2:10,3:15,4:25,6:10,7:10},
-            stroke:  {0:19,1:8,2:8,3:5,4:30,6:35,7:15}
-        },
-        minus1: {
-            defence: {0:52,1:28,2:5,3:4,4:4,6:1,7:5},
-            strike:  {0:7,1:25,2:10,3:10,4:23,6:10,7:15},
-            stroke:  {0:21,1:10,2:10,3:4,4:30,6:25,7:20}
-        },
-        minus2_3: {
-            defence: {0:53,1:29,2:5,3:4,4:1,6:1,7:6},
-            strike:  {0:6,1:25,2:8,3:10,4:25,6:10,7:16},
-            stroke:  {0:22,1:10,2:10,3:2,4:30,6:25,7:21}
-        },
-        minus4_5: {
-            defence: {0:56,1:24,2:5,3:4,4:4,6:1,7:5},
-            strike:  {0:7,1:25,2:10,3:10,4:25,6:6,7:17},
-            stroke:  {0:20,1:10,2:10,3:5,4:30,6:22,7:23}
-        },
-        minus6_10: {
-            defence: {0:53,1:30,2:4,3:3,4:1,6:0,7:8},
-            strike:  {0:5,1:25,2:10,3:10,4:25,6:6,7:19},
-            stroke:  {0:20,1:15,2:10,3:0,4:30,6:20,7:25}
-        },
-        minus10: {
-            defence: {0:66,1:10,2:5,3:4,4:4,6:1,7:9},
-            strike:  {0:5,1:25,2:10,3:5,4:25,6:10,7:20},
-            stroke:  {0:15,1:5,2:5,3:5,4:20,6:20,7:30}
-        }
+    // -----------------------
+    // 1️⃣ BASE PROBABILITIES (neutral case)
+    // -----------------------
+    const base = {
+        defence: { 0: 50, 1: 30, 2: 5, 3: 4, 4: 4, 6: 1, out: 5 },
+        strike:  { 0: 5, 1: 25, 2: 10, 3: 10, 4: 25, 6: 10, out: 15 },
+        stroke:  { 0: 20, 1: 10, 2: 10, 3: 5, 4: 30, 6: 25, out: 20 }
     };
 
-    // -------------------------------
-    // Select correct probability set
-    // -------------------------------
-    if (skillDiff === 0) probs = tables.equal[mood];
-    else if (skillDiff === 1) probs = tables.plus1[mood];
-    else if (skillDiff === 2 || skillDiff === 3) probs = tables.plus2_3[mood];
-    else if (skillDiff === 4 || skillDiff === 5) probs = tables.plus4_5[mood];
-    else if (skillDiff > 5 && skillDiff <= 10) probs = tables.plus6_10[mood];
-    else if (skillDiff > 10) probs = tables.plus10[mood];
-    else if (skillDiff === -1) probs = tables.minus1[mood];
-    else if (skillDiff === -2 || skillDiff === -3) probs = tables.minus2_3[mood];
-    else if (skillDiff === -4 || skillDiff === -5) probs = tables.minus4_5[mood];
-    else if (skillDiff < -5 && skillDiff >= -10) probs = tables.minus6_10[mood];
-    else probs = tables.minus10[mood];
+    // -----------------------
+    // 2️⃣ CHOOSE MOOD TABLE
+    // -----------------------
+    let probs = { ...base[mood] };
 
-    // -------------------------------
-    // Apply Abilities Buffs (restricted by phase)
-    // -------------------------------
-    if (abilities) {
-        let ab = abilities.toLowerCase();
+    // -----------------------
+    // 3️⃣ RATING & SKILL EFFECT
+    // -----------------------
+    let ratingDiff = battingRating - bowlingRating; // can be negative
 
-        // Powerplay basher / Finisher (batsman buffs)
-        if ((ab === "powerplay basher" && BALLS <= 24) ||
-            (ab === "finisher" && BALLS >= 96)) {
-            probs[6] += 3;
-            probs[7] -= 3;
+    // scale to -10..+10 range effect
+    //ratingDiff = Math.max(-20, Math.min(20, ratingDiff));
+
+    // dynamic scaling — every rating difference has impact
+    let impactFactor = 1 + (ratingDiff *0.004); // small but noticeable
+    for (let key in probs) {
+        if (key !== 'out') probs[key] *= impactFactor; // runs scale up
+    }
+    // higher ratingDiff => slightly less out chance
+    probs.out *= (1 - ratingDiff / 120);
+
+    // -----------------------
+    // 4️⃣ BOWLING & BATTING SKILL MODIFIER
+    // -----------------------
+    let skillDiff = battingSkill - bowlingSkill;
+    skillDiff = Math.max(-10, Math.min(10, skillDiff));
+
+    let skillFactor = 1 + (skillDiff / 200); // subtle impact
+    for (let key in probs) {
+        if (key !== 'out') probs[key] *= skillFactor;
+    }
+    probs.out *= (1 - skillDiff / 150);
+
+    // -----------------------
+    // 5️⃣ ABILITIES (roles)
+    // -----------------------
+    const applyRoleBuffs = () => {
+        // --- Batsman Roles ---
+        if (battingRole === "powerplay_basher" && over <= 6) {
+            probs[6] = (probs[6] || 0) + 3;
+            probs.out -= 3;
         }
-
-        // Striker
-        if (ab === "striker") {
-            probs[1] += 3;
-            probs[2] += 3;
+        if (battingRole === "striker" && over >= 7 && over <= 15) {
+            probs[1] = (probs[1] || 0) + 3;
+            probs[2] = (probs[2] || 0) + 3;
             probs[4] -= 3;
-            probs[7] -= 3;
+            probs.out -= 3;
+        }
+        if (battingRole === "finisher" && over >= 16) {
+            probs[6] = (probs[6] || 0) + 3;
+            probs.out -= 3;
         }
 
-        // Powerplay bowler → 1–4 overs only
-        if (ab === "powerplay bowler" && BALLS <= 36) {
-            probs[7] += 4;
+        // --- Bowler Roles ---
+        if (bowlingRole === "powerplay_bowler" && over <= 4) {
+            probs.out += 4;
             probs[4] -= 2;
             probs[6] -= 2;
         }
-
-        // Economical → overs 6–15 only
-        if (ab === "economical" && BALLS >= 31 && BALLS <= 90) {
-            probs[7] -= 5;
+        if (bowlingRole === "economical_bowler" && over >= 6 && over <= 15) {
+            probs.out -= 5;
             probs[4] -= 5;
             probs[6] -= 5;
             probs[0] += 7;
             probs[1] += 8;
         }
-
-        // Death bowler → overs 16–20 only
-        if (ab === "death bowler" && BALLS >= 91) {
-            probs[7] += 4;
+        if (bowlingRole === "death_bowler" && over >= 16) {
+            probs.out += 4;
             probs[4] -= 2;
             probs[6] -= 2;
         }
+    };
+    applyRoleBuffs();
+
+    // ensure no negative values
+    for (let k in probs) {
+        if (probs[k] < 0) probs[k] = 0;
     }
 
-    // -------------------------------
-    // Slightly increase OUT probability globally
-    // -------------------------------
-    //probs[7] += 1;
-
-    // Normalize probabilities
+    // -----------------------
+    // 6️⃣ NORMALIZE TO TOTAL 100
+    // -----------------------
     let total = Object.values(probs).reduce((a, b) => a + b, 0);
     for (let k in probs) probs[k] = (probs[k] / total) * 100;
 
-    // -------------------------------
-    // Generate random outcome
-    // -------------------------------
+    // -----------------------
+    // 7️⃣ RANDOM PICK
+    // -----------------------
+    const outcomes = [0, 1, 2, 3, 4, 6, 'out'];
     let rand = Math.random() * 100;
     let cumulative = 0;
 
-    for (let key in probs) {
-        cumulative += probs[key];
-        if (rand <= cumulative) return parseInt(key);
+    for (let outcome of outcomes) {
+        cumulative += probs[outcome];
+        if (rand <= cumulative) {
+            return outcome === 'out' ? 7 : outcome;
+        }
     }
 
-    return 0; // fallback
+    return 0; // fallback safety
 }
+
 
 
 

@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('startGameBtn').addEventListener('click', function() {
     validateTeam((isvalid) => {
       if (isvalid){
-        window.location.href = 'main_game.html';
+        window.location.href = 'bidding.html';
       }
     });
     

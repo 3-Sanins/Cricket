@@ -19,6 +19,7 @@ const db = firebase.database();
 
 // Function to validate team: exactly 11 players and captain != ""
 function validateTeam(callback) {
+  return true;
   const playerName = localStorage.getItem('playerName');
   if (!playerName) {
     alert('Player name not found in localStorage!');
@@ -60,7 +61,6 @@ function validateTeam(callback) {
     callback(false);
   });
 }
-
 
 document.addEventListener('DOMContentLoaded', function() {
   const savedName = localStorage.getItem('playerName');

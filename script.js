@@ -19,13 +19,22 @@ const db = firebase.database();
 
 // Function to validate team: exactly 11 players and captain != ""
 function validateTeam(callback) {
-  return true;
   const playerName = localStorage.getItem('playerName');
   if (!playerName) {
     alert('Player name not found in localStorage!');
     callback(false);
     return;
   }
+  
+  db.ref('users/' + playerName + '/team').once('value').then((snapshot) => {
+      const selectedTeam = snapshot.val();
+      if (!selectedTeam) {
+        window.location.href = 'bidding.html';
+      }
+    const playerCount = Object.keys(selectedTeam).filter(key => key !== 'captain').length;
+    if (playerCount<11) window.location.href = 'bidding.html';
+  });
+    
 
   // selected_team fetch karo
   db.ref('users/' + playerName + '/selected_team').once('value').then((snapshot) => {
@@ -35,9 +44,12 @@ function validateTeam(callback) {
       callback(false);
       return;
     }
+    
+    
 
     // Count players (captain ko exclude karo)
     const playerCount = Object.keys(selectedTeam).filter(key => key !== 'captain').length;
+    
 
     // Check conditions
     if (playerCount !== 11) {
@@ -62,6 +74,7 @@ function validateTeam(callback) {
   });
 }
 
+
 document.addEventListener('DOMContentLoaded', function() {
   const savedName = localStorage.getItem('playerName');
   if (savedName) {
@@ -81,10 +94,10 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('startGameBtn').addEventListener('click', function() {
-    //validateTeam((isvalid) => {
-      //if (isvalid){
-        window.location.href = 'bidding.html';
-     // }
+    validateTeam((isvalid) => {
+      if (isvalid){
+        window.location.href = 'main_game.html';
+      }
     });
     
 //    window.location.href = 'bidding.html'; // Link to start_game.html

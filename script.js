@@ -81,10 +81,10 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('startGameBtn').addEventListener('click', function() {
-    validateTeam((isvalid) => {
-      if (isvalid){
+    //validateTeam((isvalid) => {
+      //if (isvalid){
         window.location.href = 'bidding.html';
-      }
+     // }
     });
     
 //    window.location.href = 'bidding.html'; // Link to start_game.html

@@ -884,7 +884,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
             probs[6] -= 2;
         }
         
-        if (batter.skill === "Finisher") {
+        if (battingRole === "Finisher") {
   if (over >= 6 && over <= 15) {
     // defensive consistency phase
     wicketChance *= 0.65;   // 35% less likely to get out

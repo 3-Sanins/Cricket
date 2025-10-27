@@ -585,13 +585,24 @@ async function endGame(winnerKey) {
           const newFifties = (teamObj[plName].fifties || 0) + ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0);
           const newHundreds = (teamObj[plName].hundreds || 0) + ((p11Stats.runs_made >= 100) ? 1 : 0);
           const newHauls = (teamObj[plName]['5 wicket hauls'] || 0) + ((p11Stats.wicket_taken >= 5) ? 1 : 0);
+          if (p11Stats.wicket_taken>=5){
+            const newBowl=teamObj[plName].bowlingRating+0.2;
+          }
+          if (p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) {
+  const newBat = teamObj[plName].battingRating + 0.1;
+}
+          if (p11Stats.runs_made>=100) {
+  const newBat = teamObj[plName].battingRating + 0.2;
+}
           await database.ref(`users/${p.name}/team/${plName}`).update({
             runs: newRuns,
             wickets: newWickets,
             matches: newMatchesP,
             fifties: newFifties,
             hundreds: newHundreds,
-            '5 wicket hauls': newHauls
+            '5 wicket hauls': newHauls,
+            battingRating : newBat,
+            bowlingRating : newBowl
           });
           console.log('Updated player:', plName, 'runs:', newRuns, 'wickets:', newWickets);
         } else {
@@ -847,7 +858,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
             probs[1] = (probs[1] || 0) + 3;
             probs[2] = (probs[2] || 0) + 3;
             probs[4] -= 3;
-            probs.out -= 3;
+            probs.out -= 7;
         }
         if (battingRole === "finisher" && over >= 16) {
             probs[6] = (probs[6] || 0) + 3;
@@ -872,6 +883,26 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
             probs[4] -= 2;
             probs[6] -= 2;
         }
+        
+        if (batter.skill === "Finisher") {
+  if (over >= 6 && over <= 15) {
+    // defensive consistency phase
+    wicketChance *= 0.65;   // 35% less likely to get out
+    runProbabilities = runProbabilities.map((p, i) => {
+      if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
+      return p;
+    });
+  } else if (over >= 16 && over <= 20) {
+    // explosive death phase
+    //wicketChance *= 1.05;  // slightly riskier but okay
+    runProbabilities = runProbabilities.map((p, i) => {
+      if (i === 4) return p * 1.3;  // 4s
+      if (i === 6) return p * 1.4;  // 6s
+      return p;
+    });
+  }
+}
+
     };
     applyRoleBuffs();
 

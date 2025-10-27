@@ -858,7 +858,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
             probs[1] = (probs[1] || 0) + 3;
             probs[2] = (probs[2] || 0) + 3;
             probs[4] -= 3;
-            probs.out -= 7;
+            probs.out -= 5;
         }
         if (battingRole === "finisher" && over >= 16) {
             probs[6] = (probs[6] || 0) + 3;

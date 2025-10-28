@@ -585,26 +585,14 @@ async function endGame(winnerKey) {
           const newFifties = (teamObj[plName].fifties || 0) + ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0);
           const newHundreds = (teamObj[plName].hundreds || 0) + ((p11Stats.runs_made >= 100) ? 1 : 0);
           const newHauls = (teamObj[plName]['5 wicket hauls'] || 0) + ((p11Stats.wicket_taken >= 5) ? 1 : 0);
-          if (p11Stats.wicket_taken>=5){
-            const newBowl=teamObj[plName].bowlingRating+0.2;
-          }
-          else {const newBowl=teamObj[plName].bowlingRating;}
-          if (p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) {
-  const newBat = teamObj[plName].battingRating + 0.1;
-}
-          else if (p11Stats.runs_made>=100) {
-  const newBat = teamObj[plName].battingRating + 0.2;
-}
-          else {const newBat = teamObj[plName].battingRating;}
+
           await database.ref(`users/${p.name}/team/${plName}`).update({
             runs: newRuns,
             wickets: newWickets,
             matches: newMatchesP,
             fifties: newFifties,
             hundreds: newHundreds,
-            '5 wicket hauls': newHauls,
-            battingRating : newBat,
-            bowlingRating : newBowl
+            '5 wicket hauls': newHauls
           });
           console.log('Updated player:', plName, 'runs:', newRuns, 'wickets:', newWickets);
         } else {

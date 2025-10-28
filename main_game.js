@@ -588,14 +588,14 @@ async function endGame(winnerKey) {
           if (p11Stats.wicket_taken>=5){
             const newBowl=teamObj[plName].bowlingRating+0.2;
           }
-          else newBowl=teamObj[plName].bowlingRating;
+          else {const newBowl=teamObj[plName].bowlingRating;}
           if (p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) {
   const newBat = teamObj[plName].battingRating + 0.1;
 }
           else if (p11Stats.runs_made>=100) {
   const newBat = teamObj[plName].battingRating + 0.2;
 }
-          else const newBat = teamObj[plName].battingRating;
+          else {const newBat = teamObj[plName].battingRating;}
           await database.ref(`users/${p.name}/team/${plName}`).update({
             runs: newRuns,
             wickets: newWickets,

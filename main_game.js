@@ -649,7 +649,7 @@ async function endGame(winnerKey) {
   try {
     const snapshot = (await gameRef.once('value')).val() || {};
     console.log('Snapshot for stats update:', snapshot);
-    const playersToUpdate = [snapshot.player1, snapshot.player2];
+    const playersToUpdate = [currentUserKey==='player1' ? snapshot.player1 : snapshot.player2];
     for (const p of playersToUpdate) {
       if (!p || !p.name) continue;
       console.log('Updating stats for:', p.name);

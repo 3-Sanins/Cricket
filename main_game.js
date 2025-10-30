@@ -281,7 +281,7 @@ async function playBall(mood) {
 
   const batsmanP = userNode.playing11?.[strikerName] || {};
   const bowlerP = opponentNode.playing11?.[bowlerName] || {};
-  const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood,batsmanp,bowlerP);
+  const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood,batsmanP,bowlerP);
 
   const updates = {};
   const userRoot = `/${currentUserKey}`;

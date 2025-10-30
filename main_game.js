@@ -240,25 +240,32 @@ function handleInningState() {
   }
 }
 ///// BATTING LOGIC /////
-///// BATTING LOGIC /////
 function handleBatting(userData, opponentData, currentGameData) {
   displayScorecard(userData, opponentData, currentGameData.play);
+
+  // Sync currentOverBalls from Firebase
+  if (gameData.currentOver) {
+    currentOverBalls = gameData.currentOver;
+  }
+
+  // New logic: Adjust ratings based on currentOver
   
-  // Add bowler info
-const bowlerName = opponentData.baller || 'Unknown';
-console.log('Bowler name:', bowlerName, 'opponentData:', opponentData);
-const bowlerStats = opponentData.playing11?.[bowlerName] || {};
-const bowlerRuns = bowlerStats.runs_faced || 0;
-const bowlerWickets = bowlerStats.wicket_taken || 0;
-const bowlerOvers = Math.floor((bowlerStats.ball_thrown || 0) / 6);
-const bowlerInfo = `${bowlerName} (${bowlerOvers} : ${bowlerRuns} : ${bowlerWickets})`;
-const battingOverEl = document.getElementById('currentOverBatting');
-if (battingOverEl) {
-  battingOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}`;
-  console.log('Batting over updated');
-} else {
-  console.warn('currentOverBatting element not found');
-}
+
+  // Add bowler info (rest same)
+  const bowlerName = opponentData.baller || 'Unknown';
+  const bowlerStats = opponentData.playing11?.[bowlerName] || {};
+  const bowlerRuns = bowlerStats.runs_faced || 0;
+  const bowlerWickets = bowlerStats.wicket_taken || 0;
+  const bowlerOvers = Math.floor((bowlerStats.ball_thrown || 0) / 6);
+  const bowlerInfo = `${bowlerName} (${bowlerOvers} : ${bowlerRuns} : ${bowlerWickets})`;
+  const battingOverEl = document.getElementById('currentOverBatting');
+  if (battingOverEl) {
+    battingOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7 || run === 8 ? 'W' : run === 9 ? 'N' : run).join(' ')}<br>Bowler: ${bowlerInfo}`;
+  } else {
+    console.warn('currentOverBatting element not found');
+  }
+
+
   document.getElementById('defenceBtn').onclick = () => playBall('defence');
   document.getElementById('strikeBtn').onclick = () => playBall('strike');
   document.getElementById('strokeBtn').onclick = () => playBall('stroke');
@@ -370,9 +377,25 @@ async function playBall(mood) {
   }
 
   await gameRef.update(updates);
+  await controlCurrentOver(currentOverBalls);
+  
 
   const newBalls = (userNode.BALLS || 0) + (run !== 9 ? 1 : 0);
   if (newBalls % 6 === 0 && run !== 9) {
+    let sum=0;
+    let z=0;
+    for (let i=0;i<6;i++){
+      sum+=Number(currentOverBalls[i]);
+      if (currentOverBalls[i]=="0") z+=1;
+      if (newBalls>30 && (userNode.total_runs/newBalls)<3.5 && z>=4 && sum<5){
+        updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) ;
+        updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) +0.5;
+      }
+      if (sum>=20){
+        updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) ;
+        updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 1;
+      }
+    }
     currentOverBalls = [];
     await gameRef.update({ currentOver: [], [`${opponentKey}/baller`]: '' });
   }
@@ -411,6 +434,73 @@ async function playBall(mood) {
   }
 }
 
+}
+
+// Corrected function to control currentOver array and update ratings
+// Assumes global variables: striker (user's batsman), bowler (opponent's bowler), db (Firebase ref)
+async function controlCurrentOver(currentOverArray) {
+    const latestGame = (await gameRef.once('value')).val();
+  const userNode = latestGame[currentUserKey] || {};
+  const opponentNode = latestGame[opponentKey] || {};
+  const battingObj = userNode.batting || {};
+  const strikerName = Object.keys(battingObj).find(b => battingObj[b].strike);
+  const bowlerName = opponentNode.baller;
+  if (!strikerName || !bowlerName) return;
+
+const balls = currentOverArray.length || 0;
+  if (balls < 3) {
+    // Nothing
+    return;
+  }
+
+  let last3Balls = currentOverArray.slice(-3); // Last 3 balls
+  let all6 = last3Balls.every(ball => ball == "6"); // 666: All last 3 are "6"
+  let all4or6 = last3Balls.every(ball => ball === "4" || ball === "6"); // 4/6,4/6: All last 3 are "4" or "6"
+  
+  const batsmanP = userNode.playing11?.[strikerName] || {};
+  const bowlerP = opponentNode.playing11?.[bowlerName] || {};
+  //const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood);
+
+  const updates = {};
+  const userRoot = `/${currentUserKey}`;
+  const oppRoot = `/${opponentKey}`;
+
+
+  if (balls === 3) {
+    // Direct check for 3 balls
+    if (all6) {
+      // User's striker battingRating +1, Opponent's bowler bowlingRating -1
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 1;
+      console.log(`3 balls all 6: ${strikerName} batting +1, ${bowlerName} bowling -1`);
+    } else if (all4or6) {
+      // +0.5 and -0.5
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 0.5;
+      updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 0.5;
+      console.log(`3 balls all 4 or 6: ${strikerName} batting +0.5, ${bowlerName} bowling -0.5`);
+    }
+  } else if (balls > 3) {
+    // Check 4th last ball
+    const fourthLastIndex = balls - 4;
+    if (fourthLastIndex >= 0 && (currentOverArray[fourthLastIndex] == "4" || currentOverArray[fourthLastIndex] == "6")) { // Assuming "4" for wicket
+      // No change
+      console.log(`4th last ball is 4: No rating change`);
+      return;
+    }
+
+    // Check last 3 balls
+    if (all6) {
+      console.log(balls);
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 1;
+      updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 1;
+      console.log(`000 Last 3 balls all 6: ${strikerName} batting +1, ${bowlerName} bowling -1`);
+    } else if (all4or6) {
+      updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) + 0.5;
+      updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 0.5;
+      console.log(`Last 3 balls all 4 or 6: ${strikerName} batting +0.5, ${bowlerName} bowling -0.5`);
+    }
+  }
+  await gameRef.update(updates);
 }
 
 ///// BOWLING LOGIC /////
@@ -797,7 +887,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     // 1️⃣ BASE PROBABILITIES (neutral case)
     // -----------------------
     const base = {
-        defence: { 0: 50, 1: 30, 2: 5, 3: 4, 4: 4, 6: 1, out: 5 },
+        defence: { 0: 52, 1: 30, 2: 5, 3: 4, 4: 4, 6: 1, out: 3 },
         strike:  { 0: 5, 1: 25, 2: 10, 3: 10, 4: 25, 6: 10, out: 15 },
         stroke:  { 0: 20, 1: 10, 2: 10, 3: 5, 4: 30, 6: 25, out: 20 }
     };
@@ -875,17 +965,11 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
         }
         
         if (battingRole === "Finisher") {
-  if (over >= 6 && over <= 15) {
+  if (over >= 0 && over <= 20) {
     // defensive consistency phase
-    wicketChance *= 0.65;   // 35% less likely to get out
+    probs["out"]-=8;  // 35% less likely to get out
     runProbabilities = runProbabilities.map((p, i) => {
       if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
-      return p;
-    });
-  } else if (over >= 16 && over <= 20) {
-    // explosive death phase
-    //wicketChance *= 1.05;  // slightly riskier but okay
-    runProbabilities = runProbabilities.map((p, i) => {
       if (i === 4) return p * 1.3;  // 4s
       if (i === 6) return p * 1.4;  // 6s
       return p;
@@ -895,7 +979,6 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
 
     };
     applyRoleBuffs();
-
     // ensure no negative values
     for (let k in probs) {
         if (probs[k] < 0) probs[k] = 0;

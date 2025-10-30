@@ -982,11 +982,11 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     });
   }
   if (batter.ball_faced>=25){
-    probs.out-=4;
+    probs[0]-=4;
     probs[1]+=4
   }
   if (batter.ball_faced>=40){
-    probs.out-=3;
+    probs[0]-=3;
     probs[1]+=3
   }
 }

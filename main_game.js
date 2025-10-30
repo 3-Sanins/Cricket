@@ -281,7 +281,7 @@ async function playBall(mood) {
 
   const batsmanP = userNode.playing11?.[strikerName] || {};
   const bowlerP = opponentNode.playing11?.[bowlerName] || {};
-  const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood);
+  const run = run_probability(userNode.BALLS || 0, batsmanP.battingRating, bowlerP.bowlingRating, batsmanP.battingSkills, bowlerP.bowlingSkills || bowlerP.battingSkills, mood,batsmanp,bowlerP);
 
   const updates = {};
   const userRoot = `/${currentUserKey}`;
@@ -396,6 +396,9 @@ async function playBall(mood) {
         updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 1;
       }
     }
+    updates[`${userRoot}/batting/${strikerName}/strike`] = false;
+const other = Object.keys(battingObj).find(b => b !== strikerName);
+if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
     currentOverBalls = [];
     await gameRef.update({ currentOver: [], [`${opponentKey}/baller`]: '' });
   }
@@ -775,6 +778,7 @@ function displayScorecard(userData, opponentData, play) {
   opponentData = opponentData || {};
   const overs = String(Math.floor((userData.BALLS || 0) / 6))+"."+String(userData.BALLS%6);
   const runRate = (userData.BALLS || 0) > 0 ? ((userData.total_runs || 0) / (userData.BALLS || 0) * 6).toFixed(2) : '0.00';
+  
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
     const chasing = (opponentData.total_runs || 0);
@@ -802,7 +806,9 @@ function displayScorecard(userData, opponentData, play) {
     const runs = p.runs_made || 0;
     const balls = p.ball_faced || 0;
     const sr = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00';
-    html += `<br>${strike}${batsman}: ${runs} (${balls}, SR: ${sr})`;
+    const six = p.six || 0;
+const fours = p.four || 0;
+    html += `<br>${strike}${batsman}: ${runs} (${balls}, SR: ${sr}) (Sixes ${six} , Fours ${fours})`;
   
   });
   html += `</div>`;
@@ -879,7 +885,7 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
-function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowlingRole, mood, battingSkill=0, bowlingSkill=0) {
+function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowlingRole, mood,batter,bowler, battingSkill=0, bowlingSkill=0) {
     // Convert BALLS to over number
     const over = Math.ceil(BALLS / 6);
 
@@ -974,6 +980,14 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
       if (i === 6) return p * 1.4;  // 6s
       return p;
     });
+  }
+  if (batter.ball_faced>=25){
+    probs.out-=4;
+    probs[1]+=4
+  }
+  if (batter.ball_faced>=40){
+    probs.out-=3;
+    probs[1]+=3
   }
 }
 

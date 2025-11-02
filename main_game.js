@@ -973,11 +973,11 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
         if (battingRole === "Finisher") {
   if (over >= 0 && over <= 20) {
     // defensive consistency phase
-    probs["out"]-=8;  // 35% less likely to get out
+    //probs["out"]-=8;  // 35% less likely to get out
     runProbabilities = runProbabilities.map((p, i) => {
-      if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
-      if (i === 4) return p * 1.3;  // 4s
-      if (i === 6) return p * 1.4;  // 6s
+      //if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
+      //if (i === 4) return p * 1.3;  // 4s
+      //if (i === 6) return p * 1.4;  // 6s
       return p;
     });
   }
@@ -1007,16 +1007,21 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     // -----------------------
     // 7️⃣ RANDOM PICK
     // -----------------------
-    const outcomes = [0, 1, 2, 3, 4, 6, 'out'];
-    let rand = Math.random() * 100;
-    let cumulative = 0;
+    // Random pick with controlled randomness
+const outcomes = [0, 1, 2, 3, 4, 6, 'out'];
 
-    for (let outcome of outcomes) {
-        cumulative += probs[outcome];
-        if (rand <= cumulative) {
-            return outcome === 'out' ? 7 : outcome;
-        }
+// ✅ Control factor (lower = less randomness)
+const randomnessFactor = 0.5; // 0.5 = controlled, 1 = normal random, 0 = almost fixed
+
+let rand = Math.pow(Math.random(), randomnessFactor) * 100;
+let cumulative = 0;
+
+for (let outcome of outcomes) {
+    cumulative += probs[outcome];
+    if (rand <= cumulative) {
+        return outcome === 'out' ? 7 : outcome;
     }
+}
 
     return 0; // fallback safety
 }

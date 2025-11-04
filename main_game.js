@@ -1011,7 +1011,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
 const outcomes = [0, 1, 2, 3, 4, 6, 'out'];
 
 // ✅ Control factor (lower = less randomness)
-const randomnessFactor = 0.2; // 0.5 = controlled, 1 = normal random, 0 = almost fixed
+const randomnessFactor = 1; // 0.5 = controlled, 1 = normal random, 0 = almost fixed
 
 let rand = Math.pow(Math.random(), randomnessFactor) * 100;
 let cumulative = 0;

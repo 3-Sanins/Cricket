@@ -166,7 +166,7 @@ document.getElementById('take-btn').addEventListener('click', () => {
         alert('Insufficient funds! You need at least ' + newPrice + ' to bid.');
         return;
       }
-      if (playersOwned >= 24) {
+      if (playersOwned >= 40) {
         alert('You cannot own more than 24 players!');
         return;
       }
@@ -225,6 +225,7 @@ document.getElementById('leave-btn').addEventListener('click', () => {
         const playersRef = database.ref('players');
         playersRef.set(reindexed).then(() => {
           alert('Player deleted due to ' + otherUser + '\'s bid=1.');
+          otherUserRef.set(0);
           fetchData();
         }).catch((error) => {
           alert('Error deleting player: ' + error.message);

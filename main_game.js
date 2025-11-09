@@ -424,7 +424,7 @@ if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
     }
   }
 
-  if ((updatedUser.BALLS || 0) >= 120) {
+  if ((updatedUser.BALLS || 0) >= 300) {
     if (post.play === 'inning1') {
       const targetRuns = updatedUser.total_runs + 1;
       const battingUser = updatedUser.name;
@@ -542,7 +542,7 @@ currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7
     }
   }
 
-  if ((oppNow.BALLS || 0) >= 120) {
+  if ((oppNow.BALLS || 0) >= 300) {
     if (currentGameData.play === 'inning1') {
       const targetRuns = oppNow.total_runs + 1;
       const battingUser = oppNow.name;
@@ -621,7 +621,7 @@ function bowlerSelection(userNode) {
   let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Ball Thrown</th><th>Runs Faced</th><th>Wickets Taken</th><th>Select</th></tr>`;
   Object.keys(playing11).forEach(player => {
     const p = playing11[player];
-    if (p.ball_thrown>=30) return; 
+    if ((p.ball_thrown>=60) || (p.name==gameData[currentUserKey].baller || "")) return; 
     html += `<tr><td>${player}</td><td>${p.bowlingRating || '-'}</td><td>${p.bowlingSkills || p.battingSkills || '-'}</td><td>${p.ball_thrown || 0}</td><td>${p.runs_faced || 0}</td><td>${p.wicket_taken || 0}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
   });
   html += `</table><div style="text-align:right"><button onclick="selectBowler()">Play</button></div>`;
@@ -782,7 +782,7 @@ function displayScorecard(userData, opponentData, play) {
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
     const chasing = (opponentData.total_runs || 0);
-    const ballsLeft = Math.max(120 - (userData.BALLS || 0), 0);
+    const ballsLeft = Math.max(300 - (userData.BALLS || 0), 0);
     const runsRequired = Math.max(chasing - (userData.total_runs || 0), 0);
     const rrr = ballsLeft > 0 ? ((runsRequired / ballsLeft) * 6).toFixed(2) : '0.00';
     html += ` Chasing: ${chasing} (RRR: ${rrr})`;
@@ -893,9 +893,9 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     // 1️⃣ BASE PROBABILITIES (neutral case)
     // -----------------------
     const base = {
-        defence: { 0: 52, 1: 30, 2: 5, 3: 4, 4: 4, 6: 1, out: 3 },
-        strike:  { 0: 5, 1: 25, 2: 10, 3: 10, 4: 25, 6: 10, out: 15 },
-        stroke:  { 0: 20, 1: 10, 2: 10, 3: 5, 4: 30, 6: 25, out: 20 }
+        defence: { 0: 52, 1: 33, 2: 7, 3: 3, 4: 2, 6: 1, out: 0 },
+        strike:  { 0: 14, 1: 30, 2: 20, 3: 15, 4: 12, 6: 4, out: 5 },
+        stroke:  { 0: 8, 1: 20, 2: 20, 3: 12, 4: 20, 6: 15, out: 10 }
     };
 
     // -----------------------
@@ -917,7 +917,7 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
         if (key !== 'out') probs[key] *= impactFactor; // runs scale up
     }
     // higher ratingDiff => slightly less out chance
-    probs.out *= (1 - ratingDiff / 120);
+    probs.out *= (1 - ratingDiff / 200);
 
     // -----------------------
     // 4️⃣ BOWLING & BATTING SKILL MODIFIER
@@ -936,48 +936,48 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     // -----------------------
     const applyRoleBuffs = () => {
         // --- Batsman Roles ---
-        if (battingRole === "powerplay_basher" && over <= 6) {
-            probs[6] = (probs[6] || 0) + 3;
-            probs.out -= 3;
+        if (battingRole === "powerplay_basher" && over <= 8) {
+            probs[6] = (probs[6] || 0) + 2;
+            probs.out -= 2;
         }
-        if (battingRole === "striker" && over >= 7 && over <= 15) {
+        if (battingRole === "striker" && over >= 9 && over <= 42) {
             probs[1] = (probs[1] || 0) + 3;
             probs[2] = (probs[2] || 0) + 3;
             probs[4] -= 3;
-            probs.out -= 7;
-        }
-        if (battingRole === "finisher" && over >= 16) {
-            probs[6] = (probs[6] || 0) + 3;
             probs.out -= 3;
+        }
+        if (battingRole === "finisher" && over >= 43) {
+            probs[6] = (probs[6] || 0) + 2;
+            probs.out -= 2;
         }
 
         // --- Bowler Roles ---
-        if (bowlingRole === "powerplay_bowler" && over <= 4) {
-            probs.out += 4;
-            probs[4] -= 2;
-            probs[6] -= 2;
+        if (bowlingRole === "powerplay_bowler" && over <= 8) {
+            probs.out += 2;
+            probs[4] -= 1;
+            probs[6] -= 1;
         }
-        if (bowlingRole === "economical_bowler" && over >= 6 && over <= 15) {
-            probs.out -= 5;
-            probs[4] -= 5;
-            probs[6] -= 5;
-            probs[0] += 7;
-            probs[1] += 8;
+        if (bowlingRole === "economical_bowler" && over >= 9 && over <= 42) {
+            probs.out -= 3;
+            probs[4] -= 3;
+            probs[6] -= 3;
+            probs[0] += 4;
+            probs[1] += 6;
         }
-        if (bowlingRole === "death_bowler" && over >= 16) {
-            probs.out += 4;
-            probs[4] -= 2;
-            probs[6] -= 2;
+        if (bowlingRole === "death_bowler" && over >= 43) {
+            probs.out += 2;
+            probs[4] -= 1;
+            probs[6] -= 1;
         }
         
         if (battingRole === "Finisher") {
-  if (over >= 0 && over <= 20) {
+  if (over >= 0 && over <= 0) {
     // defensive consistency phase
-    //probs["out"]-=8;  // 35% less likely to get out
+    probs["out"]-=8;  // 35% less likely to get out
     runProbabilities = runProbabilities.map((p, i) => {
-      //if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
-      //if (i === 4) return p * 1.3;  // 4s
-      //if (i === 6) return p * 1.4;  // 6s
+      if (i <= 2) return p * 1.15;   // 0–2 run shots slightly up
+      if (i === 4) return p * 1.3;  // 4s
+      if (i === 6) return p * 1.4;  // 6s
       return p;
     });
   }

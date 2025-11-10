@@ -936,20 +936,28 @@ function run_probability(BALLS, battingRating, bowlingRating, battingRole, bowli
     // -----------------------
     const applyRoleBuffs = () => {
         // --- Batsman Roles ---
-        if (battingRole === "powerplay_basher" && over <= 8) {
+        if (battingRole === "powerplay_basher" && over <= 5) {
             probs[6] = (probs[6] || 0) + 2;
             probs.out -= 2;
         }
+        if (battingRole === "powerplay_basher" && over <= 10 && over>5) {
+  probs[6] = (probs[6] || 0) + 1;
+  probs.out -= 1;
+}
         if (battingRole === "striker" && over >= 9 && over <= 42) {
-            probs[1] = (probs[1] || 0) + 3;
-            probs[2] = (probs[2] || 0) + 3;
+            probs[1] = (probs[1] || 0) + 2;
+            probs[2] = (probs[2] || 0) + 2;
             probs[4] -= 3;
-            probs.out -= 3;
-        }
-        if (battingRole === "finisher" && over >= 43) {
-            probs[6] = (probs[6] || 0) + 2;
             probs.out -= 2;
         }
+        if (battingRole === "finisher" && over >= 40 && over<=45) {
+            probs[6] = (probs[6] || 0) + 1;
+            probs.out -= 1;
+        }
+        if (battingRole === "finisher" && over > 45 ) {
+  probs[6] = (probs[6] || 0) + 2;
+  probs.out -= 2;
+}
 
         // --- Bowler Roles ---
         if (bowlingRole === "powerplay_bowler" && over <= 8) {

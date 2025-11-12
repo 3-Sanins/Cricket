@@ -887,72 +887,97 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
-function run_probability(
-  BALLS, // ball count remaining or bowled index depending on your code; here we expect 1..300 index
-  battingRating, bowlingRating,
-  battingRole, bowlingRole,
-  mood, batter, bowler,
-  battingSkill = 0, bowlingSkill = 0
+function run_probability_wc2019(
+  ballIndex,            // integer 1..300 (ball number in innings)
+  battingRating,        // numeric rating (keeps subtle influence)
+  bowlingRating,
+  battingRole,          // "powerplay_basher" | "striker" | "finisher" (string)
+  bowlingRole,          // "powerplay_bowler" | "economical_bowler" | "death_bowler"
+  mood,                 // "defence"|"strike"|"stroke" (optional influence not used heavily)
+  batter,               // { ball_faced: n }
+  bowler,               // unused here but kept for API parity
+  battingSkill = 0,
+  bowlingSkill = 0
 ) {
-  const over = Math.ceil(BALLS / 6); // ensure BALLS is ball-index 1..300
+  const over = Math.ceil(ballIndex / 6); // 1..50
 
-  // BASE (phase tuned)
+  // ---------- WORLD CUP 2019 BASE (per-ball)
   let probs;
-  if (over <= 10) probs = {0:38, 1:32, 2:8, 3:3, 4:10, 6:3, out:4.2};
-  else if (over <= 40) probs = {0:52, 1:27, 2:8, 3:2, 4:5, 6:0.8, out:4.8};
-  else probs = {0:30, 1:28, 2:12, 3:4, 4:12, 6:6, out:5.2};
+  if (over <= 10) {
+    probs = {0:32, 1:30, 2:9, 3:3, 4:18, 6:6, out:2};
+  } else if (over <= 40) {
+    probs = {0:46, 1:28, 2:9, 3:2, 4:12, 6:2, out:1};
+  } else {
+    probs = {0:28, 1:26, 2:12, 3:4, 4:18, 6:8, out:4};
+  }
 
-  // rating/skill subtle influence (keeps relative shape)
-  const ratingDiff = battingRating - bowlingRating;
-  const impactFactor = 1 + (ratingDiff * 0.003); // subtle
+  // ---------- subtle rating/skill influences (keeps shape, small effects)
+  const ratingDiff = (battingRating || 70) - (bowlingRating || 70);
+  const impactFactor = 1 + (ratingDiff * 0.0025); // small scaling
   for (let k in probs) if (k !== 'out') probs[k] *= impactFactor;
-  probs.out *= Math.max(0.5, 1 - ratingDiff / 250);
+  probs.out *= Math.max(0.4, 1 - ratingDiff / 300);
 
   const skillDiff = Math.max(-10, Math.min(10, battingSkill - bowlingSkill));
-  const skillFactor = 1 + (skillDiff / 250);
+  const skillFactor = 1 + (skillDiff / 300);
   for (let k in probs) if (k !== 'out') probs[k] *= skillFactor;
-  probs.out *= Math.max(0.5, 1 - skillDiff / 200);
+  probs.out *= Math.max(0.5, 1 - skillDiff / 250);
 
-  // ROLE BUFFS (as described)
+  // ---------- ROLE BUFFS — tuned toward WC2019 behaviour
+  // Batting roles:
   if (battingRole === "powerplay_basher" && over <= 10) {
-    probs[4] += 2; probs[6] += 1.5; probs.out -= 1.8;
+    probs[4] = (probs[4] || 0) + 3.5;
+    probs[6] = (probs[6] || 0) + 1.5;
+    probs.out = (probs.out || 0) - 1.5;
   }
   if (battingRole === "striker" && over >= 11 && over <= 40) {
-    probs[4] += 0.8; probs[6] += 0.8; probs.out -= 3; probs[1] += 1;
+    probs[1] = (probs[1] || 0) + 2;
+    probs[4] = (probs[4] || 0) + 0.8;
+    probs[6] = (probs[6] || 0) + 0.4;
+    probs.out = (probs.out || 0) - 2.5; // strikers take lowest dismissal risk in middle overs
   }
   if (battingRole === "finisher" && over >= 35) {
-    probs[4] += 2.5; probs[6] += 1.8; probs.out -= 1.8;
+    probs[4] = (probs[4] || 0) + 3;
+    probs[6] = (probs[6] || 0) + 2;
+    probs.out = (probs.out || 0) - 1.8;
   }
 
+  // Bowling roles:
   if (bowlingRole === "powerplay_bowler" && over <= 10) {
-    probs[4] -= 1; probs[6] -= 1; probs.out += 4.2; probs[0] += 1.5;
+    probs[4] = Math.max(0, (probs[4] || 0) - 1.5);
+    probs[6] = Math.max(0, (probs[6] || 0) - 1);
+    probs.out = (probs.out || 0) + 3.5; // higher wicket chance up front (WC2019 saw early strikes)
+    probs[0] = (probs[0] || 0) + 1.5;
   }
   if (bowlingRole === "economical_bowler" && over >= 11 && over <= 40) {
-    probs[4] -= 5; probs[6] -= 3; probs.out -= 2.2; probs[0] += 8.5;
+    probs[4] = Math.max(0, (probs[4] || 0) - 4.5);
+    probs[6] = Math.max(0, (probs[6] || 0) - 2.5);
+    probs.out = Math.max(0.2, (probs.out || 0) - 2.0); // economy-first -> fewer wickets
+    probs[0] = (probs[0] || 0) + 6.5;
   }
   if (bowlingRole === "death_bowler" && over >= 41) {
-    probs[4] -= 1; probs[6] -= 1; probs.out += 4.2;
+    probs[4] = Math.max(0, (probs[4] || 0) - 1);
+    probs[6] = Math.max(0, (probs[6] || 0) - 1);
+    probs.out = (probs.out || 0) + 4.0; // death bowlers cause dismissals via pressure
+    probs[0] = (probs[0] || 0) - 0.5;
   }
 
-  // batter rhythm (set batsmen)
-  if (batter && batter.ball_faced >= 40) { probs[0] -= 1; probs[1] += 1; }
-  if (batter && batter.ball_faced >= 70) { probs[0] -= 1; probs[1] += 1; }
+  // batter rhythm
+  if (batter && batter.ball_faced >= 40) { probs[0] = Math.max(0, (probs[0] || 0) - 1); probs[1] = (probs[1] || 0) + 1; }
+  if (batter && batter.ball_faced >= 70) { probs[0] = Math.max(0, (probs[0] || 0) - 1); probs[1] = (probs[1] || 0) + 1; }
 
-  // clean negatives
+  // ---------- cleanup & normalize
   for (let k in probs) if (probs[k] < 0) probs[k] = 0;
-
-  // normalize
   let total = Object.values(probs).reduce((a,b)=>a+b,0);
   if (total <= 0) return 0;
-  for (let k in probs) probs[k] = (probs[k]/total) * 100;
+  for (let k in probs) probs[k] = probs[k] / total * 100;
 
-  // pick outcome
+  // ---------- random pick (returns 7 for wicket)
   const outcomes = [0,1,2,3,4,6,'out'];
   const r = Math.random()*100;
   let cum = 0;
   for (let o of outcomes) {
     cum += probs[o];
-    if (r <= cum) return o === 'out' ? 7 : o;
+    if (r <= cum) return (o === 'out') ? 7 : o;
   }
   return 0;
 }

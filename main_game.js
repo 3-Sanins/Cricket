@@ -387,13 +387,15 @@ async function playBall(mood) {
     for (let i=0;i<6;i++){
       sum+=Number(currentOverBalls[i]);
       if (currentOverBalls[i]=="0") z+=1;
-      if (newBalls>30 && (userNode.total_runs/newBalls)<3.5 && z>=4 && sum<5){
+      if (newBalls>42 && (userNode.total_runs/newBalls)<2.5 && z>=4 && sum<4){
         updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) ;
         updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) +0.5;
+        console.log(bowlerName);
       }
       if (sum>=20){
         updates[`${userRoot}/playing11/${strikerName}/battingRating`] = (batsmanP.battingRating || 0) ;
         updates[`${oppRoot}/playing11/${bowlerName}/bowlingRating`] = (bowlerP.bowlingRating || 0) - 1;
+        console.log(bowlerName);
       }
     }
     updates[`${userRoot}/batting/${strikerName}/strike`] = false;
@@ -621,7 +623,7 @@ function bowlerSelection(userNode) {
   let html = `<h3>Select Bowler</h3><table><tr><th>Name</th><th>Bowling Rating</th><th>Skill</th><th>Ball Thrown</th><th>Runs Faced</th><th>Wickets Taken</th><th>Select</th></tr>`;
   Object.keys(playing11).forEach(player => {
     const p = playing11[player];
-    if ((p.ball_thrown>=60) || (p.name==gameData[currentUserKey].baller || "")) return; 
+    if ((p.ball_thrown>=60) || (p.name==gameData[currentUserKey].baller)) return; 
     html += `<tr><td>${player}</td><td>${p.bowlingRating || '-'}</td><td>${p.bowlingSkills || p.battingSkills || '-'}</td><td>${p.ball_thrown || 0}</td><td>${p.runs_faced || 0}</td><td>${p.wicket_taken || 0}</td><td><input type="radio" name="bowler" value="${player}"></td></tr>`;
   });
   html += `</table><div style="text-align:right"><button onclick="selectBowler()">Play</button></div>`;
@@ -885,6 +887,106 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
+function run_probability(
+  BALLS,
+  battingRating,
+  bowlingRating,
+  battingRole,
+  bowlingRole,
+  mood,
+  batter,
+  bowler,
+  battingSkill = 0,
+  bowlingSkill = 0
+) {
+  const over = Math.ceil(BALLS / 6);
+
+  // ---- Base phase balance ----
+  let base;
+  if (over <= 10) base = { 0: 40, 1: 30, 2: 8, 3: 3, 4: 14, 6: 3, out: 2 };
+  else if (over <= 40) base = { 0: 45, 1: 32, 2: 10, 3: 3, 4: 8, 6: 1, out: 1.5 };
+  else base = { 0: 25, 1: 25, 2: 12, 3: 5, 4: 20, 6: 10, out: 2.5 };
+
+  let probs = { ...base };
+
+  // ---- Rating & skill influence ----
+  const ratingDiff = battingRating - bowlingRating;
+  const impactFactor = 1 + ratingDiff * 0.004;
+  for (let k in probs) if (k !== "out") probs[k] *= impactFactor;
+  probs.out *= 1 - ratingDiff / 200;
+
+  const skillDiff = Math.max(-10, Math.min(10, battingSkill - bowlingSkill));
+  const skillFactor = 1 + skillDiff / 200;
+  for (let k in probs) if (k !== "out") probs[k] *= skillFactor;
+  probs.out *= 1 - skillDiff / 150;
+
+  // ---- Role Buffs ----
+  const applyRoleBuffs = () => {
+    // 🏏 Batting roles
+    if (battingRole === "powerplay_basher" && over <= 10) {
+      probs[4] += 3;
+      probs[6] += 2;
+      probs.out -= 2;
+    }
+    if (battingRole === "striker" && over >= 11 && over <= 40) {
+      probs[4] += 1;
+      probs[6] += 1;
+      probs.out -= 4;
+      probs[1] += 1;
+    }
+    if (battingRole === "finisher" && over >= 35) {
+      probs[4] += 3;
+      probs[6] += 2;
+      probs.out -= 2;
+    }
+
+    // 🎯 Bowling roles
+    if (bowlingRole === "powerplay_bowler" && over <= 10) {
+      probs[4] -= 1;
+      probs[6] -= 1;
+      probs.out += 3;
+      probs[0] += 1;
+    }
+    if (bowlingRole === "economical_bowler" && over >= 11 && over <= 40) {
+      probs[4] -= 4;
+      probs[6] -= 2;
+      probs.out -= 2;
+      probs[0] += 6;
+    }
+    if (bowlingRole === "death_bowler" && over >= 41) {
+      probs[4] -= 1;
+      probs[6] -= 1;
+      probs.out += 3;
+    }
+
+    // 🧠 Set batsman rhythm
+    if (batter.ball_faced >= 40) {
+      probs[0] -= 1;
+      probs[1] += 1;
+    }
+    if (batter.ball_faced >= 70) {
+      probs[0] -= 1;
+      probs[1] += 1;
+    }
+  };
+
+  applyRoleBuffs();
+
+  // ---- Normalize ----
+  for (let k in probs) if (probs[k] < 0) probs[k] = 0;
+  const total = Object.values(probs).reduce((a, b) => a + b, 0);
+  for (let k in probs) probs[k] = (probs[k] / total) * 100;
+
+  // ---- Random outcome ----
+  const outcomes = [0, 1, 2, 3, 4, 6, "out"];
+  const rand = Math.random() * 100;
+  let cumulative = 0;
+  for (let outcome of outcomes) {
+    cumulative += probs[outcome];
+    if (rand <= cumulative) return outcome === "out" ? 7 : outcome;
+  }
+  return 0;
+}
 
 
 

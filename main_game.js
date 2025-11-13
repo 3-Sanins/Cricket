@@ -887,7 +887,7 @@ window.startInning2 = function() {
   hidePopup();
 };
 ///// Random run probability placeholder /////
-function run_probability_wc2019(
+function run_probability(
   ballIndex,            // integer 1..300 (ball number in innings)
   battingRating,        // numeric rating (keeps subtle influence)
   bowlingRating,

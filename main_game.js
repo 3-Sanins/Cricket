@@ -889,7 +889,7 @@ window.startInning2 = function() {
 ///// Random run probability placeholder /////
 // Use ballIndex = 1..300 (1 is first ball of innings)
 // Returns 7 for wicket, otherwise 0/1/2/3/4/6
-function run_probability_rating_sensitive(
+function run_probability(
   ballIndex, battingRating, bowlingRating,
   battingRole, bowlingRole, mood,
   batter, bowler, battingSkill = 0, bowlingSkill = 0

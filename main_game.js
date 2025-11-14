@@ -889,100 +889,167 @@ window.startInning2 = function() {
 ///// Random run probability placeholder /////
 // Use ballIndex = 1..300 (1 is first ball of innings)
 // Returns 7 for wicket, otherwise 0/1/2/3/4/6
+/**
+ * run_probability - realistic, rating/skill/button/role sensitive per-ball outcome
+ *
+ * Inputs:
+ *  - ballIndex: 1..300 (ball number in innings)
+ *  - battingRating, bowlingRating: numeric (0..100 typical)
+ *  - battingRole: "powerplay_basher" | "striker" | "finisher"
+ *  - bowlingRole: "powerplay_bowler" | "economical_bowler" | "death_bowler"
+ *  - mood: "defence" | "strike" | "stroke"  (optional; small extra layer)
+ *  - batter: object { ball_faced: n } (used for rhythm)
+ *  - bowler: (unused but kept)
+ *  - battingSkill, bowlingSkill: numeric (-10..+10 recommended)
+ *
+ * Returns: 7 for wicket, else 0/1/2/3/4/6
+ */
 function run_probability(
-  ballIndex, battingRating, bowlingRating,
-  battingRole, bowlingRole, mood,
-  batter, bowler, battingSkill = 0, bowlingSkill = 0
+  ballIndex,
+  battingRating = 70,
+  bowlingRating = 70,
+  battingRole = "striker",
+  bowlingRole = "economical_bowler",
+  mood = "strike",
+  batter = { ball_faced: 0 },
+  bowler = {},
+  battingSkill = 0,
+  bowlingSkill = 0
 ) {
-  const over = Math.ceil(ballIndex / 6); // 1..50
+  // safety clamp helpers
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const safe = (v) => (Number.isFinite(v) ? v : 0);
 
-  // --- base (phase tuned) same as earlier tuned engine (fractions of non-wicket mass)
-  const pw_power = 0.025, pw_middle = 0.014, pw_death = 0.025;
-  let base;
-  if (over <= 10) {
-    base = {0:0.5039731941638969,1:0.27577140247493137,2:0.13872269268665555,3:0.01,4:0.0362029070025411,6:0.035329803671975114, out: pw_power};
-  } else if (over <= 40) {
-    base = {0:0.5578288165372519,1:0.30913884706560935,2:0.05975958760704364,3:0.01,4:0.039147932949232994,6:0.024124815840862148, out: pw_middle};
-  } else {
-    base = {0:0.5429469487979203,1:0.23977775538606683,2:0.0736873715500634,3:0.01,4:0.05432691050142267,6:0.07926101376452682, out: pw_death};
+  const over = clamp(Math.ceil(ballIndex / 6), 1, 50);
+
+  // -----------------------
+  // 1) Phase base distributions (fractions of NON-WICKET mass)
+  // (these are tuned to aim ODI-like behaviour; actual per-ball will be normalized)
+  // -----------------------
+  // note: 'out_base' is the per-ball wicket probability (before rating/skill/mood)
+  let baseNonW, outBase;
+  if (over <= 10) { // powerplay
+    baseNonW = { 0: 0.50, 1: 0.28, 2: 0.11, 3: 0.01, 4: 0.06, 6: 0.04 };
+    outBase = 0.025; // ~1.5 wickets per 60 balls
+  } else if (over <= 40) { // middle
+    baseNonW = { 0: 0.56, 1: 0.30, 2: 0.06, 3: 0.01, 4: 0.04, 6: 0.03 };
+    outBase = 0.014; // middle wickets ~2-3 per 180 balls
+  } else { // death
+    baseNonW = { 0: 0.54, 1: 0.26, 2: 0.08, 3: 0.02, 4: 0.06, 6: 0.04 };
+    outBase = 0.025;
   }
 
-  // Build initial probs (non-wicket mass scaled by (1 - pw))
-  const pw = base.out;
+  // Convert baseNonW to absolute probs (scale by 1 - outBase)
   let probs = {};
-  for (let k of [0,1,2,3,4,6]) probs[k] = base[k] * (1 - pw);
-  probs.out = pw;
+  const nonWScale = 1 - outBase;
+  for (const k of [0, 1, 2, 3, 4, 6]) probs[k] = (baseNonW[k] || 0) * nonWScale;
+  probs.out = outBase;
 
-  // -------------------------
-  // RATING & SKILL (STRONG EFFECT)
-  // -------------------------
-  // ratingDiff strong scaling: each rating point ~ 1% change, clamped to avoid blowups
-  let ratingDiff = (battingRating || 70) - (bowlingRating || 70);
-  ratingDiff = Math.max(-30, Math.min(30, ratingDiff)); // clamp +/-30
-  const ratingFactor = 1 + (ratingDiff * 0.01); // e.g., +30 => x1.30, -30 => x0.70
-
-  // skill difference (smaller but meaningful): 2% per skill point
-  let skillDiff = Math.max(-10, Math.min(10, battingSkill - bowlingSkill));
-  const skillFactor = 1 + (skillDiff * 0.02); // e.g., +8 => x1.16
-
-  // mood multipliers (per-targeted outcome categories)
-  const moodMap = {
-    defence: {0:1.10, 1:0.90, 4:0.80, 6:0.60, out:1.05},
-    strike:  {0:0.95, 1:1.05, 4:1.00, 6:0.90, out:0.95},
-    stroke:  {0:0.90, 1:1.00, 4:1.10, 6:1.30, out:0.90}
+  // -----------------------
+  // 2) BUTTON (mood) multipliers - strong and decisive
+  // -----------------------
+  // We keep these as multiplicative modifiers to main categories
+  const buttonMap = {
+    defence:  { dot: 1.25, single: 1.15, four: 0.6,  six: 0.4,  out: 0.65 },
+    strike:   { dot: 0.90, single: 1.00, four: 1.15, six: 1.10, out: 1.20 },
+    stroke:   { dot: 0.80, single: 0.95, four: 1.40, six: 1.60, out: 1.50 }
   };
-  const mm = moodMap[mood] || moodMap['strike'];
+  const btn = buttonMap[mood] || buttonMap["strike"];
 
-  // Apply multiplicative effects to non-wicket outcomes
-  for (let k of [0,1,2,3,4,6]) {
-    // default mood multiplier for keys not specified -> 1
-    const moodMult = mm[k] || 1.0;
-    probs[k] *= (ratingFactor * skillFactor * moodMult);
-  }
-  // For wicket, *reduce* it when batter is stronger: invert the combined factor (but clamp min)
-  const outMood = mm['out'] || 1.0;
-  // avoid zero; stronger batter => out becomes smaller
-  probs.out = probs.out * Math.max(0.2, 1 / (ratingFactor * skillFactor * outMood));
+  // apply button multipliers
+  probs[0] *= safe(btn.dot);
+  probs[1] *= safe(btn.single);
+  probs[2] *= safe(btn.single); // treat 2 as single-ish for button impact
+  probs[3] *= safe(btn.single);
+  probs[4] *= safe(btn.four);
+  probs[6] *= safe(btn.six);
+  probs.out *= safe(btn.out);
 
-  // -------------------------
-  // ROLE EFFECTS (small/controlled)
-  // -------------------------
+  // -----------------------
+  // 3) Rating + Skill impact (STRONG)
+  //    - large rating gaps should swing boundaries & wicket chances strongly
+  // -----------------------
+  // ratingDiff clamped to +/- 40 (avoid numerical explosion)
+  let ratingDiff = clamp((battingRating || 70) - (bowlingRating || 70), -40, 40);
+  // Convert to multiplicative factors:
+  // Positive ratingDiff (batter stronger) increases boundaries and reduces out
+  const ratingBoundaryBoost = 1 + (ratingDiff * 0.006); // each rating pt ~0.6% to 4% at 40pt gap
+  const ratingOutFactor = clamp(1 - (ratingDiff * 0.004), 0.2, 2.5); // reduce out when batter strong
+
+  // skill effect (smaller but noticeable)
+  let skillDiff = clamp(battingSkill - bowlingSkill, -10, 10);
+  const skillBoost = 1 + (skillDiff * 0.03); // each skill pt ~3%
+  const skillOutFactor = clamp(1 - (skillDiff * 0.02), 0.3, 2.0);
+
+  // Apply to boundaries and dots and out
+  probs[4] *= ratingBoundaryBoost * skillBoost;
+  probs[6] *= (1 + (ratingDiff * 0.004)) * (1 + skillDiff * 0.02); // slightly smaller coefficient for sixes
+  // stronger batter -> fewer dots; weaker batter -> more dots
+  probs[0] *= (1 / ratingBoundaryBoost) * (1 / (skillBoost || 1));
+  // apply out modifiers (batter stronger -> less out)
+  probs.out *= ratingOutFactor * skillOutFactor;
+
+  // -----------------------
+  // 4) ROLE modifiers (phase-aware, controlled)
+  // -----------------------
+  // Batting roles
   if (battingRole === "powerplay_basher" && over <= 10) {
-    probs[4] *= 1.30; probs[6] *= 1.25; probs.out *= 0.85;
+    probs[4] *= 1.25; probs[6] *= 1.20; probs.out *= 0.80; probs[1] *= 0.95;
   }
   if (battingRole === "striker" && over >= 11 && over <= 40) {
-    probs[1] *= 1.20; probs.out *= 0.60; // striker lowers dismissal risk strongly in middle
+    probs[1] *= 1.25; probs[4] *= 0.95; probs[6] *= 0.95; probs.out *= 0.65;
   }
   if (battingRole === "finisher" && over >= 35) {
-    probs[4] *= 1.25; probs[6] *= 1.30; probs.out *= 0.80;
+    probs[4] *= 1.30; probs[6] *= 1.40; probs.out *= 0.80;
   }
-  if (bowlingRole === "economical_bowler" && over >= 11 && over <= 40) {
-    probs[0] *= 1.25; probs.out *= 0.90; probs[4] *= 0.70; probs[6] *= 0.60;
-  }
+
+  // Bowling roles
   if (bowlingRole === "powerplay_bowler" && over <= 10) {
-    probs.out *= 1.40; probs[4] *= 0.80; probs[6] *= 0.85;
+    probs.out *= 1.35; probs[4] *= 0.85; probs[6] *= 0.90; probs[0] *= 1.10;
+  }
+  if (bowlingRole === "economical_bowler" && over >= 11 && over <= 35) {
+    probs[0] *= 1.40; probs[1] *= 1.10; probs[4] *= 0.70; probs[6] *= 0.60; probs.out *= 0.85;
   }
   if (bowlingRole === "death_bowler" && over >= 41) {
-    probs.out *= 1.50; probs[4] *= 0.85; probs[6] *= 0.85;
+    probs.out *= 1.45; probs[4] *= 0.85; probs[6] *= 0.85; probs[0] *= 1.05;
   }
 
-  // batter rhythm: experienced batsmen shift to singles occasionally
-  if (batter && batter.ball_faced >= 40) { probs[0] *= 0.92; probs[1] *= 1.05; }
+  // batter rhythm (experienced batsmen shift to singles/doubles, fewer dots)
+  if (batter && batter.ball_faced >= 40) { probs[0] *= 0.92; probs[1] *= 1.06; }
+  if (batter && batter.ball_faced >= 70) { probs[0] *= 0.90; probs[1] *= 1.08; }
 
-  // cleanup + normalize (avoid negatives)
-  for (let k in probs) if (probs[k] < 0) probs[k] = 0;
-  let total = Object.values(probs).reduce((a,b) => a + b, 0);
-  if (total <= 0) return 0;
-  for (let k in probs) probs[k] = probs[k] / total * 100;
+  // -----------------------
+  // 5) Keep out probability reasonably bounded (never zero & not > 0.5)
+  // -----------------------
+  probs.out = clamp(safe(probs.out), 0.002, 0.50);
 
-  // pick outcome
+  // -----------------------
+  // 6) Negative guard & normalize to percentages
+  // -----------------------
+  for (const k in probs) if (!Number.isFinite(probs[k]) || probs[k] < 0) probs[k] = 0;
+  let total = 0;
+  for (const k of [0,1,2,3,4,6,'out']) total += safe(probs[k]);
+
+  // If something degenerate happened, fallback to a safe distribution
+  if (!(total > 0)) {
+    probs = { 0: 0.5, 1: 0.27, 2: 0.1, 3: 0.01, 4: 0.07, 6: 0.03, out: 0.02 };
+    total = 1;
+  }
+
+  // convert to cumulative percent
+  const pct = {};
+  for (const k of [0,1,2,3,4,6,'out']) pct[k] = (probs[k] / total) * 100;
+
+  // -----------------------
+  // 7) Random pick
+  // -----------------------
   const outcomes = [0,1,2,3,4,6,'out'];
   let r = Math.random() * 100, cum = 0;
-  for (let o of outcomes) {
-    cum += probs[o];
-    if (r <= cum) return (o === 'out') ? 7 : o;
+  for (const o of outcomes) {
+    cum += pct[o];
+    if (r <= cum) return (o === 'out' ? 7 : o);
   }
-  return 0;
+  return 0; // fallback
 }
 
 

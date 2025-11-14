@@ -910,85 +910,78 @@ function run_probability(
     batter, bowler,
     battingSkill, bowlingSkill
 ) {
+    // ----- SAFETY CONVERSIONS -----
+    BALLS          = Number(BALLS) || 0;
+    battingRating  = Number(battingRating) || 0;
+    bowlingRating  = Number(bowlingRating) || 0;
+    battingSkill   = Number(battingSkill) || 0;
+    bowlingSkill   = Number(bowlingSkill) || 0;
 
-    BALLS = Number(BALLS);
-    const ballsFaced = Number(batter.ball_faced);
+    const ballsFaced = Number(batter?.ball_faced) || 0;
 
-    // -----------------------------
-    // 1. Mood Base Probabilities
-    // -----------------------------
+    // ----- MOOD BASE -----
     const baseProbs = {
-        defence: [75, 20, 3, 1, 0.5, 0.3, 0.2],  // dot-heavy
-        strike:  [25, 35, 20, 5, 10, 3, 2],      // balanced
-        stroke:  [10, 20, 10, 5, 25, 20, 10]     // boundary-heavy
+        defence: [75, 20, 3, 1, 0.5, 0.3, 0.2],
+        strike:  [25, 35, 20, 5, 10, 3, 2],
+        stroke:  [10, 20, 10, 5, 25, 20, 10]
     };
 
     let probs = [...baseProbs[mood]];
 
-    // -----------------------------
-    // 2. Rating Diff (STRONGEST)
-    // -----------------------------
+    // ----- RATING DIFF -----
     const ratingDiff = (battingRating - bowlingRating) / 10;
 
-    // Boundaries scale strongly
-    probs[4] += ratingDiff * 4;  // 4s
-    probs[5] += ratingDiff * 3;  // 6s
-
-    // Wicket decreases with batting advantage
+    probs[4] += ratingDiff * 4;
+    probs[5] += ratingDiff * 3;
     probs[6] -= ratingDiff * 3;
-
-    // Dot decreases when batter strong
     probs[0] -= ratingDiff * 2;
-
-    // Singles/2s slight buff
     probs[1] += ratingDiff * 1.2;
     probs[2] += ratingDiff * 0.8;
 
-    // -----------------------------
-    // 3. PHASE-SPECIFIC Skill Effect
-    // -----------------------------
-    const skillDiff = battingSkill - bowlingSkill;
+    // ----- PHASE -----
+    const power  = BALLS <= 60;
+    const middle = BALLS > 60 && BALLS <= 240;
+    const death  = BALLS > 240 && BALLS <= 300;
 
-    const inPowerplay = BALLS <= 60;
-    const inMiddle    = BALLS > 60 && BALLS <= 240;
-    const inDeath     = BALLS > 240 && BALLS <= 300;
+    // ----- SAFE SKILL DIFF -----
+    let skillDiff = battingSkill - bowlingSkill;
+    if (isNaN(skillDiff)) skillDiff = 0;
 
-    if (inPowerplay && battingRole === "powerplay_basher") {
+    // ----- SKILL PHASE EFFECT -----
+    if (power && battingRole === "powerplay_basher") {
         probs[4] += skillDiff * 0.7;
         probs[5] += skillDiff * 0.6;
         probs[6] -= skillDiff * 0.3;
     }
-    if (inPowerplay && bowlingRole === "powerplay_bowler") {
-        probs[6] += skillDiff * -0.4; // bowler advantage → more wicket
+    if (power && bowlingRole === "powerplay_bowler") {
+        probs[6] += skillDiff * -0.4;
         probs[4] -= skillDiff * 0.5;
         probs[5] -= skillDiff * 0.5;
     }
 
-    if (inMiddle && battingRole === "striker") {
+    if (middle && battingRole === "striker") {
         probs[1] += skillDiff * 0.8;
         probs[2] += skillDiff * 0.8;
         probs[6] -= skillDiff * 0.4;
     }
-    if (inMiddle && bowlingRole === "economical_bowler") {
-        probs[0] += skillDiff * -0.6; // bowler advantage → more dots
+    if (middle && bowlingRole === "economical_bowler") {
+        probs[0] += skillDiff * -0.6;
         probs[4] -= skillDiff * 0.4;
         probs[5] -= skillDiff * 0.4;
     }
 
-    if (inDeath && battingRole === "finisher") {
+    if (death && battingRole === "finisher") {
         probs[4] += skillDiff * 1.0;
         probs[5] += skillDiff * 1.0;
         probs[6] -= skillDiff * 0.3;
     }
-    if (inDeath && bowlingRole === "death_bowler") {
+    if (death && bowlingRole === "death_bowler") {
         probs[6] += skillDiff * -0.7;
         probs[4] -= skillDiff * 0.5;
         probs[5] -= skillDiff * 0.5;
     }
 
-    // -----------------------------
-    // 4. LONG STAY (balls faced)
-    // -----------------------------
+    // ----- LONG STAY -----
     if (ballsFaced >= 30) {
         probs[0] -= 3;
         probs[1] += 2;
@@ -999,24 +992,19 @@ function run_probability(
         probs[4] += 2;
     }
 
-    // -----------------------------
-    // 5. Clamp Negative
-    // -----------------------------
+    // ----- FIX NEGATIVE & NaN -----
     for (let i = 0; i < probs.length; i++) {
+        if (isNaN(probs[i])) probs[i] = 0;
         if (probs[i] < 0) probs[i] = 0;
     }
 
-    // -----------------------------
-    // 6. Normalize to 100
-    // -----------------------------
-    const total = probs.reduce((a, b) => a + b, 0);
+    // ----- NORMALIZE -----
+    let total = probs.reduce((a, b) => a + b, 0);
+    if (total <= 0) total = 1;
     probs = probs.map(p => (p / total) * 100);
 
-    // -----------------------------
-    // 7. Weighted Random Outcome
-    // -----------------------------
+    // ----- RANDOM PICK -----
     const outcomes = [0, 1, 2, 3, 4, 6, 7];
-
     let r = Math.random() * 100;
     let cum = 0;
 

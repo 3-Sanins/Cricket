@@ -889,89 +889,98 @@ window.startInning2 = function() {
 ///// Random run probability placeholder /////
 // Use ballIndex = 1..300 (1 is first ball of innings)
 // Returns 7 for wicket, otherwise 0/1/2/3/4/6
-function run_probability(ballIndex, battingRating, bowlingRating,
-                                  battingRole, bowlingRole, mood,
-                                  batter, bowler, battingSkill=0, bowlingSkill=0) {
+function run_probability_rating_sensitive(
+  ballIndex, battingRating, bowlingRating,
+  battingRole, bowlingRole, mood,
+  batter, bowler, battingSkill = 0, bowlingSkill = 0
+) {
   const over = Math.ceil(ballIndex / 6); // 1..50
 
-  // ---------- BASE (non-role) phase distributions (these were tuned to match phase targets)
-  // These are fractions of the non-wicket mass (found by numeric tuning).
-  const pw_power = 0.025;   // wicket prob per ball in powerplay
-  const pw_middle = 0.014;  // wicket prob per ball in middle
-  const pw_death = 0.025;   // wicket prob per ball in death
-
+  // --- base (phase tuned) same as earlier tuned engine (fractions of non-wicket mass)
+  const pw_power = 0.025, pw_middle = 0.014, pw_death = 0.025;
   let base;
   if (over <= 10) {
-    base = {0:0.5039731941638969, 1:0.27577140247493137, 2:0.13872269268665555,
-            3:0.01, 4:0.0362029070025411, 6:0.035329803671975114, out: pw_power};
+    base = {0:0.5039731941638969,1:0.27577140247493137,2:0.13872269268665555,3:0.01,4:0.0362029070025411,6:0.035329803671975114, out: pw_power};
   } else if (over <= 40) {
-    base = {0:0.5578288165372519, 1:0.30913884706560935, 2:0.05975958760704364,
-            3:0.01, 4:0.039147932949232994, 6:0.024124815840862148, out: pw_middle};
+    base = {0:0.5578288165372519,1:0.30913884706560935,2:0.05975958760704364,3:0.01,4:0.039147932949232994,6:0.024124815840862148, out: pw_middle};
   } else {
-    base = {0:0.5429469487979203, 1:0.23977775538606683, 2:0.0736873715500634,
-            3:0.01, 4:0.05432691050142267, 6:0.07926101376452682, out: pw_death};
+    base = {0:0.5429469487979203,1:0.23977775538606683,2:0.0736873715500634,3:0.01,4:0.05432691050142267,6:0.07926101376452682, out: pw_death};
   }
 
-  // Build probabilities (non-wicket fractions scaled by (1 - pw))
+  // Build initial probs (non-wicket mass scaled by (1 - pw))
   const pw = base.out;
   let probs = {};
   for (let k of [0,1,2,3,4,6]) probs[k] = base[k] * (1 - pw);
   probs.out = pw;
 
-  // ---------- Optional role tweaks (kept very small here; enable/adjust to taste)
-  // Minimal role effects so phase targets remain stable:
+  // -------------------------
+  // RATING & SKILL (STRONG EFFECT)
+  // -------------------------
+  // ratingDiff strong scaling: each rating point ~ 1% change, clamped to avoid blowups
+  let ratingDiff = (battingRating || 70) - (bowlingRating || 70);
+  ratingDiff = Math.max(-30, Math.min(30, ratingDiff)); // clamp +/-30
+  const ratingFactor = 1 + (ratingDiff * 0.01); // e.g., +30 => x1.30, -30 => x0.70
+
+  // skill difference (smaller but meaningful): 2% per skill point
+  let skillDiff = Math.max(-10, Math.min(10, battingSkill - bowlingSkill));
+  const skillFactor = 1 + (skillDiff * 0.02); // e.g., +8 => x1.16
+
+  // mood multipliers (per-targeted outcome categories)
+  const moodMap = {
+    defence: {0:1.10, 1:0.90, 4:0.80, 6:0.60, out:1.05},
+    strike:  {0:0.95, 1:1.05, 4:1.00, 6:0.90, out:0.95},
+    stroke:  {0:0.90, 1:1.00, 4:1.10, 6:1.30, out:0.90}
+  };
+  const mm = moodMap[mood] || moodMap['strike'];
+
+  // Apply multiplicative effects to non-wicket outcomes
+  for (let k of [0,1,2,3,4,6]) {
+    // default mood multiplier for keys not specified -> 1
+    const moodMult = mm[k] || 1.0;
+    probs[k] *= (ratingFactor * skillFactor * moodMult);
+  }
+  // For wicket, *reduce* it when batter is stronger: invert the combined factor (but clamp min)
+  const outMood = mm['out'] || 1.0;
+  // avoid zero; stronger batter => out becomes smaller
+  probs.out = probs.out * Math.max(0.2, 1 / (ratingFactor * skillFactor * outMood));
+
+  // -------------------------
+  // ROLE EFFECTS (small/controlled)
+  // -------------------------
   if (battingRole === "powerplay_basher" && over <= 10) {
-    probs[4] += 0.02 * (1 - pw);
-    probs[6] += 0.015 * (1 - pw);
-    probs.out = Math.max(0.001, probs.out - 0.015);
+    probs[4] *= 1.30; probs[6] *= 1.25; probs.out *= 0.85;
   }
   if (battingRole === "striker" && over >= 11 && over <= 40) {
-    probs[1] += 0.03 * (1 - pw);
-    probs[4] = Math.max(0, probs[4] - 0.005);
-    probs[6] = Math.max(0, probs[6] - 0.005);
-    probs.out = Math.max(0.001, probs.out - 0.03);
+    probs[1] *= 1.20; probs.out *= 0.60; // striker lowers dismissal risk strongly in middle
   }
   if (battingRole === "finisher" && over >= 35) {
-    probs[4] += 0.03 * (1 - pw);
-    probs[6] += 0.02 * (1 - pw);
-    probs.out = Math.max(0.001, probs.out - 0.02);
-  }
-
-  if (bowlingRole === "powerplay_bowler" && over <= 10) {
-    probs.out += 0.03;
-    probs[4] = Math.max(0, probs[4] - 0.02);
-    probs[6] = Math.max(0, probs[6] - 0.01);
-    probs[0] += 0.02 * (1 - pw);
+    probs[4] *= 1.25; probs[6] *= 1.30; probs.out *= 0.80;
   }
   if (bowlingRole === "economical_bowler" && over >= 11 && over <= 40) {
-    probs.out = Math.max(0.001, probs.out - 0.02);
-    probs[0] += 0.04 * (1 - pw);
-    probs[4] = Math.max(0, probs[4] - 0.04);
-    probs[6] = Math.max(0, probs[6] - 0.02);
+    probs[0] *= 1.25; probs.out *= 0.90; probs[4] *= 0.70; probs[6] *= 0.60;
+  }
+  if (bowlingRole === "powerplay_bowler" && over <= 10) {
+    probs.out *= 1.40; probs[4] *= 0.80; probs[6] *= 0.85;
   }
   if (bowlingRole === "death_bowler" && over >= 41) {
-    probs.out += 0.04;
-    probs[4] = Math.max(0, probs[4] - 0.02);
-    probs[6] = Math.max(0, probs[6] - 0.03);
+    probs.out *= 1.50; probs[4] *= 0.85; probs[6] *= 0.85;
   }
 
-  // batter rhythm (small)
-  if (batter && batter.ball_faced >= 40) { probs[0] = Math.max(0, probs[0] - 0.02); probs[1] = (probs[1]||0) + 0.02; }
-  if (batter && batter.ball_faced >= 70) { probs[0] = Math.max(0, probs[0] - 0.02); probs[1] = (probs[1]||0) + 0.02; }
+  // batter rhythm: experienced batsmen shift to singles occasionally
+  if (batter && batter.ball_faced >= 40) { probs[0] *= 0.92; probs[1] *= 1.05; }
 
-  // cleanup & normalize
+  // cleanup + normalize (avoid negatives)
   for (let k in probs) if (probs[k] < 0) probs[k] = 0;
-  let total = Object.values(probs).reduce((a,b)=>a+b,0);
+  let total = Object.values(probs).reduce((a,b) => a + b, 0);
   if (total <= 0) return 0;
-  for (let k in probs) probs[k] = probs[k] / total * 100; // percent
+  for (let k in probs) probs[k] = probs[k] / total * 100;
 
   // pick outcome
   const outcomes = [0,1,2,3,4,6,'out'];
-  let r = Math.random() * 100;
-  let cum = 0;
+  let r = Math.random() * 100, cum = 0;
   for (let o of outcomes) {
     cum += probs[o];
-    if (r <= cum) return o === 'out' ? 7 : o;
+    if (r <= cum) return (o === 'out') ? 7 : o;
   }
   return 0;
 }

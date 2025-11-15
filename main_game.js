@@ -921,9 +921,9 @@ function run_probability(
 
     // ----- MOOD BASE -----
     const baseProbs = {
-        defence: [75, 20, 3, 1, 0.5, 0.3, 0.2],
-        strike:  [25, 35, 20, 5, 10, 3, 2],
-        stroke:  [10, 20, 10, 5, 25, 20, 10]
+        defence: [50, 40, 6, 1, 1, 1, 1],
+        strike:  [15, 30, 25, 3, 13, 5, 10],
+        stroke:  [5, 18, 10, 2, 20, 25, 20]
     };
 
     let probs = [...baseProbs[mood]];
@@ -933,7 +933,7 @@ function run_probability(
 
     probs[4] += ratingDiff * 4;
     probs[5] += ratingDiff * 3;
-    probs[6] -= ratingDiff * 3;
+    probs[6] -= ratingDiff * 2.3;
     probs[0] -= ratingDiff * 2;
     probs[1] += ratingDiff * 1.2;
     probs[2] += ratingDiff * 0.8;

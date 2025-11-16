@@ -948,37 +948,49 @@ function run_probability(
     if (isNaN(skillDiff)) skillDiff = 0;
 
     // ----- SKILL PHASE EFFECT -----
-    if (power && battingRole === "powerplay_basher") {
-        probs[4] += skillDiff * 0.7;
-        probs[5] += skillDiff * 0.6;
-        probs[6] -= skillDiff * 0.3;
-    }
-    if (power && bowlingRole === "powerplay_bowler") {
-        probs[6] += skillDiff * -0.4;
-        probs[4] -= skillDiff * 0.5;
-        probs[5] -= skillDiff * 0.5;
-    }
+    // PHASE + ROLE BUFFS (constant, safe, non-backfiring)
 
-    if (middle && battingRole === "striker") {
-        probs[1] += skillDiff * 0.8;
-        probs[2] += skillDiff * 0.8;
-        probs[6] -= skillDiff * 0.4;
-    }
-    if (middle && bowlingRole === "economical_bowler") {
-        probs[0] += skillDiff * -0.6;
-        probs[4] -= skillDiff * 0.4;
-        probs[5] -= skillDiff * 0.4;
-    }
+// POWERPLAY
+if (power && battingRole === "powerplay_basher") {
+    probs[4] += 6;    // +4s
+    probs[5] += 5;    // +6s
+    probs[6] -= 3;    // fewer wickets
+}
+if (power && bowlingRole === "powerplay_bowler") {
+    probs[6] += 4;    // more wickets
+    probs[4] -= 3;    // fewer 4s
+    probs[5] -= 3;    // fewer 6s
+}
 
-    if (death && battingRole === "finisher") {
-        probs[4] += skillDiff * 1.0;
-        probs[5] += skillDiff * 1.0;
-        probs[6] -= skillDiff * 0.3;
-    }
-    if (death && bowlingRole === "death_bowler") {
-        probs[6] += skillDiff * -0.7;
-        probs[4] -= skillDiff * 0.5;
-        probs[5] -= skillDiff * 0.5;
+// MIDDLE OVERS
+if (middle && battingRole === "striker") {
+    probs[1] += 6;    // singles more
+    probs[2] += 4;    // doubles more
+    probs[6] -= 2;    // wicket slightly reduced
+}
+if (middle && bowlingRole === "economical_bowler") {
+    probs[0] += 7;    // dot balls more
+    probs[4] -= 2;    // less 4s
+    probs[5] -= 2;    // less 6s
+}
+
+// DEATH OVERS
+if (death && battingRole === "finisher") {
+    probs[4] += 7;    // more 4s
+    probs[5] += 7;    // more 6s
+    probs[6] -= 2;    // slight wicket reduction
+}
+if (death && bowlingRole === "death_bowler") {
+    probs[6] += 7;    // wicket more
+    probs[4] -= 4;    // fewer 4s
+    probs[5] -= 4;    // fewer 6s
+}
+
+    
+    if (battingRole==="finisher"){
+    //  probs[6]-=10;
+      //probs[4]+=3;
+      //probs[5]+=3;
     }
 
     // ----- LONG STAY -----

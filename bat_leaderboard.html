@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Batting Leaderboard</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background: #222;
+      color: white;
+      font-weight: bold;
+    }
+
+    tr:hover {
+      background: #f5f5f5;
+    }
+  </style>
+
+  <!-- FIREBASE (compat version) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyDBhHt1wbY-gwlmUYkLSWblqgs8sptCWps",
+  authDomain: "cricket-f3711.firebaseapp.com",
+  databaseURL: "https://cricket-f3711-default-rtdb.firebaseio.com",
+  projectId: "cricket-f3711",
+  storageBucket: "cricket-f3711.firebasestorage.app",
+  messagingSenderId: "84308127741",
+  appId: "1:84308127741:web:9d7cc9843558d4d053b394"
+};
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  </script>
+</head>
+
+<body>
+<h1>Batting Leaderboard</h1>
+
+<table id="leaderTable">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Owner</th>
+      <th>Name</th>
+      <th>Matches</th>
+      <th>Runs</th>
+      <th>Average</th>
+      <th>Sixes</th>
+      <th>Fours</th>
+      <th>Strike Rate</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+async function loadLeaderboard() {
+  const usersSnap = await db.ref("users").once("value");
+  const users = usersSnap.val() || {};
+
+  let players = [];
+
+  for (const ownerName of Object.keys(users)) {
+    const user = users[ownerName];
+    const team = user.team || {};
+
+    for (const plName of Object.keys(team)) {
+      const p = team[plName];
+
+      // Skip if never batted
+      if (!p.balls_faced || p.balls_faced === 0) continue;
+
+      const runs = p.runs || 0;
+      const outs = p.outs || 0;
+      const matches = p.matches || 0;
+      const sixes = p.sixes || 0;
+      const fours = p.fours || 0;
+
+      const avg = outs > 0 ? (runs / outs).toFixed(2) : runs.toFixed(2);
+      const sr = ((runs / p.balls_faced) * 100).toFixed(2);
+
+      players.push({
+        owner: ownerName,
+        name: plName,
+        runs,
+        outs,
+        matches,
+        sixes,
+        fours,
+        avg,
+        sr,
+        boundaryScore: sixes + fours
+      });
+    }
+  }
+
+  // SORTING LOGIC
+  players.sort((a, b) => {
+    if (b.runs !== a.runs) return b.runs - a.runs;             // Most runs
+    if (a.outs !== b.outs) return a.outs - b.outs;             // Least outs
+    if (a.matches !== b.matches) return a.matches - b.matches; // Least matches
+    return b.boundaryScore - a.boundaryScore;                  // Most boundaries
+  });
+
+  // INSERT INTO TABLE
+  const tbody = document.querySelector("#leaderTable tbody");
+  tbody.innerHTML = "";
+
+  players.forEach((p, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${index+1}</td>
+      <td>${p.owner}</td>
+      <td>${p.name}</td>
+      <td>${p.matches}</td>
+      <td>${p.runs}</td>
+      <td>${p.avg}</td>
+      <td>${p.sixes}</td>
+      <td>${p.fours}</td>
+      <td>${p.sr}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+loadLeaderboard();
+</script>
+
+</body>
+</html>

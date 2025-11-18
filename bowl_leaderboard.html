@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bowling Leaderboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #0d1117;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+
+    h1 {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 26px;
+    }
+
+    table {
+        width: 95%;
+        margin: 20px auto;
+        border-collapse: collapse;
+        background: #161b22;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    th, td {
+        padding: 10px;
+        text-align: center;
+        border-bottom: 1px solid #30363d;
+    }
+
+    th {
+        background: #21262d;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background: #2d333b;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Bowling Leaderboard</h1>
+
+<table id="leaderTable">
+    <thead>
+        <tr>
+            <th>Rank</th>
+<th>Owner</th>
+<th>Name</th>
+<th>Wickets</th>
+<th>Overs</th>
+<th>Runs Faced</th>
+<th>Avg (W/R)</th>
+<th>Economy</th>
+
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script>
+    // ----------------------------
+    // YOUR FIREBASE CONFIG
+    // ----------------------------
+    const firebaseConfig = {
+  apiKey: "AIzaSyDBhHt1wbY-gwlmUYkLSWblqgs8sptCWps",
+  authDomain: "cricket-f3711.firebaseapp.com",
+  databaseURL: "https://cricket-f3711-default-rtdb.firebaseio.com",
+  projectId: "cricket-f3711",
+  storageBucket: "cricket-f3711.firebasestorage.app",
+  messagingSenderId: "84308127741",
+  appId: "1:84308127741:web:9d7cc9843558d4d053b394"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+
+    // ----------------------------
+    // LOAD BOWLING LEADERBOARD
+    // ----------------------------
+    async function loadBowlingLeaderboard() {
+        const snap = await database.ref("users").once("value");
+        const users = snap.val() || {};
+
+        let bowlers = [];
+
+        for (const owner in users) {
+            const team = users[owner].team || {};
+
+            for (const pl in team) {
+                const p = team[pl];
+
+                // BALLS_BOWLED = balls_thrown
+                if (!p.balls_thrown || p.balls_thrown === 0) continue;
+
+                const wickets = p.wickets || 0;
+                const runsFaced = p.runs_faced || 0;
+                const balls = p.balls_thrown || 0;
+
+                const avg = runsFaced > 0 ? (wickets / runsFaced) : 0;
+                const eco = balls > 0 ? (runsFaced / balls) * 6 : 0;
+                const overs = String(Math.floor(balls / 6))+"."+String(balls%6);
+
+                bowlers.push({
+                    owner,
+                    name: pl,
+                    wickets,
+                    runsFaced,
+                    balls,
+                    avg,
+                    eco,
+                    overs
+                });
+            }
+        }
+
+        // ----------------------------
+        // SORTING RULES
+        // ----------------------------
+        bowlers.sort((a, b) => {
+            // 1) Higher avg = better
+            if (b.avg !== a.avg) return b.avg - a.avg;
+
+            // 2) Higher wickets = better
+            if (b.wickets !== a.wickets) return b.wickets - a.wickets;
+
+            // 3) Lower runs_faced = better
+            if (a.runsFaced !== b.runsFaced) return a.runsFaced - b.runsFaced;
+
+            // 4) Alphabetical name tie-breaker
+            return a.name.localeCompare(b.name);
+        });
+
+        // ----------------------------
+        // BUILD TABLE
+        // ----------------------------
+        const tbody = document.querySelector("#leaderTable tbody");
+        tbody.innerHTML = "";
+
+        let rank = 1;
+
+        bowlers.forEach(bw => {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+    <td>${rank}</td>
+    <td>${bw.owner}</td>
+    <td>${bw.name}</td>
+    <td>${bw.wickets}</td>
+    <td>${bw.overs}</td>
+    <td>${bw.runsFaced}</td>
+    <td>${bw.avg.toFixed(2)}</td>
+    <td>${bw.eco.toFixed(2)}</td>
+`;
+
+
+            tbody.appendChild(tr);
+            rank++;
+        });
+    }
+
+    loadBowlingLeaderboard();
+</script>
+
+</body>
+</html>

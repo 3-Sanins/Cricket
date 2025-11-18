@@ -106,6 +106,14 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('myDataBtn').addEventListener('click', function() {
     window.location.href = 'my_data.html'; // Link to my_data.html
   });
+  
+  document.getElementById('bat_l').addEventListener('click', function() {
+  window.location.href = 'bat_leaderboard.html'; // Link to my_data.html
+});
+
+  document.getElementById('bowl_l').addEventListener('click', function() {
+  window.location.href = 'bowl_leaderboard.html'; // Link to my_data.html
+});
 
   document.getElementById('playersDataBtn').addEventListener('click', function() {
     window.location.href = 'players_data.html'; // Link to players_data.html

@@ -92,7 +92,7 @@ async function handleNoneState() {
             playing11[p] = {
               ...selectedTeam[p],
               ball_faced: 0, ball_thrown: 0, runs_made: 0, runs_faced: 0,
-              wicket_taken: 0, six: 0, four: 0, inning: 0
+              wicket_taken: 0, six: 0, four: 0, inning: 0, out : -1
             };
           }
         });
@@ -139,7 +139,7 @@ async function handleYetState() {
             playing11[p] = {
               ...selectedTeam[p],
               ball_faced: 0, ball_thrown: 0, runs_made: 0, runs_faced: 0,
-              wicket_taken: 0, six: 0, four: 0, inning: 0
+              wicket_taken: 0, six: 0, four: 0, inning: 0,out: -1
             };
           }
         });
@@ -286,6 +286,7 @@ async function playBall(mood) {
   const updates = {};
   const userRoot = `/${currentUserKey}`;
   const oppRoot = `/${opponentKey}`;
+  updates[`${userRoot}/playing11/${strikerName}/out`] = 0;
 
   if (run === 9) {
     updates[`${userRoot}/total_runs`] = (userNode.total_runs || 0) + 1;
@@ -354,11 +355,13 @@ async function playBall(mood) {
       alert(`${strikerName} has reached 100 runs! His confidence is boosted.`);
     }
   } else if (run === 7 || run === 8) {
+    updates[`${userRoot}/playing11/${strikerName}/out`] = 1;
     updates[`${userRoot}/playing11/${strikerName}/inning`] = 1;
     updates[`${userRoot}/batters/${strikerName}`] = { ...(batsmanP || {}) };
     updates[`${userRoot}/wicket`] = (userNode.wicket || 0) + 1;
     updates[`${oppRoot}/playing11/${bowlerName}/wicket_taken`] = (bowlerP.wicket_taken || 0) + 1;
     updates[`${userRoot}/batting/${strikerName}`] = null;
+    
     const remainingBatsmen = Object.keys(battingObj).filter(b => b !== strikerName);
     if (remainingBatsmen.length > 0) {
       updates[`${userRoot}/batting/${remainingBatsmen[0]}/strike`] = true;
@@ -426,7 +429,7 @@ if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
     }
   }
 
-  if ((updatedUser.BALLS || 0) >= 300) {
+  if ((updatedUser.BALLS || 0) >= 6) {
     if (post.play === 'inning1') {
       const targetRuns = updatedUser.total_runs + 1;
       const battingUser = updatedUser.name;
@@ -544,7 +547,7 @@ currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7
     }
   }
 
-  if ((oppNow.BALLS || 0) >= 300) {
+  if ((oppNow.BALLS || 0) >= 6) {
     if (currentGameData.play === 'inning1') {
       const targetRuns = oppNow.total_runs + 1;
       const battingUser = oppNow.name;
@@ -654,52 +657,120 @@ async function endGame(winnerKey) {
   try {
     const snapshot = (await gameRef.once('value')).val() || {};
     console.log('Snapshot for stats update:', snapshot);
-    const playersToUpdate = [currentUserKey==='player1' ? snapshot.player1 : snapshot.player2];
+
+    const playersToUpdate = [
+      currentUserKey === 'player1' ? snapshot.player1 : snapshot.player2
+    ];
+
     for (const p of playersToUpdate) {
       if (!p || !p.name) continue;
+
       console.log('Updating stats for:', p.name);
+
       const userSnapshot = await database.ref(`users/${p.name}`).once('value');
       const userObj = userSnapshot.val() || {};
       console.log('Current userObj:', userObj);
+
+      // User matches & wins update
       const newMatches = (userObj.matchesPlayed || 0) + 1;
-      const newWins = ((winnerKey === (p === snapshot.player1 ? 'player1' : 'player2')) ? ((userObj.wins || 0) + 1) : (userObj.wins || 0));
+      const newWins =
+        winnerKey === (p === snapshot.player1 ? 'player1' : 'player2')
+          ? (userObj.wins || 0) + 1
+          : (userObj.wins || 0);
+
       await database.ref(`users/${p.name}`).update({
         matchesPlayed: newMatches,
         wins: newWins
       });
+
       console.log('Updated matchesPlayed:', newMatches, 'wins:', newWins);
 
+      // TEAM players update
       const teamObj = userObj.team || {};
       const p11 = p.playing11 || {};
-      for (const plName of Object.keys(p11)) {
-        if (teamObj[plName]) {
-          const p11Stats = p11[plName];
-          const newRuns = (teamObj[plName].runs || 0) + (p11Stats.runs_made || 0);
-          const newWickets = (teamObj[plName].wickets || 0) + (p11Stats.wicket_taken || 0);
-          const newMatchesP = (teamObj[plName].matches || 0) + 1;
-          const newFifties = (teamObj[plName].fifties || 0) + ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0);
-          const newHundreds = (teamObj[plName].hundreds || 0) + ((p11Stats.runs_made >= 100) ? 1 : 0);
-          const newHauls = (teamObj[plName]['5 wicket hauls'] || 0) + ((p11Stats.wicket_taken >= 5) ? 1 : 0);
 
-          await database.ref(`users/${p.name}/team/${plName}`).update({
-            runs: newRuns,
-            wickets: newWickets,
-            matches: newMatchesP,
-            fifties: newFifties,
-            hundreds: newHundreds,
-            '5 wicket hauls': newHauls
-          });
-          console.log('Updated player:', plName, 'runs:', newRuns, 'wickets:', newWickets);
-        } else {
+      for (const plName of Object.keys(p11)) {
+        if (!teamObj[plName]) {
           console.warn('Player not in team:', plName);
+          continue;
         }
+
+        const p11Stats = p11[plName];
+        const teamStats = teamObj[plName];
+
+        // EXISTING FIELDS
+        const newRuns =
+          (teamStats.runs || 0) + (p11Stats.runs_made || 0);
+
+        const newWickets =
+          (teamStats.wickets || 0) + (p11Stats.wicket_taken || 0);
+
+        // MATCHES (only if out != -1)
+        const newMatchesP =
+          (teamStats.matches || 0) +
+          (p11Stats.out != -1 ? 1 : 0);
+
+        // MILESTONES
+        const newFifties =
+          (teamStats.fifties || 0) +
+          ((p11Stats.runs_made >= 50 && p11Stats.runs_made < 100) ? 1 : 0);
+
+        const newHundreds =
+          (teamStats.hundreds || 0) +
+          ((p11Stats.runs_made >= 100) ? 1 : 0);
+
+        const newHauls =
+          (teamStats['5 wicket hauls'] || 0) +
+          ((p11Stats.wicket_taken >= 5) ? 1 : 0);
+
+        // NEW FIELDS
+        const newOuts =
+          (teamStats.outs || 0) + (p11Stats.out == 1 ? 1 : 0);
+
+        const newBallsFaced =
+          (teamStats.balls_faced || 0) + (p11Stats.ball_faced || 0);
+
+        const newBallsThrown =
+          (teamStats.balls_thrown || 0) + (p11Stats.ball_thrown || 0);
+
+        const newRunsFaced =
+          (teamStats.runs_faced || 0) + (p11Stats.runs_faced || 0);
+
+        const newSixes =
+          (teamStats.sixes || 0) + (p11Stats.six || 0);
+
+        const newFours =
+          (teamStats.fours || 0) + (p11Stats.four || 0);
+
+        // FINAL DATABASE UPDATE
+        await database.ref(`users/${p.name}/team/${plName}`).update({
+          runs: newRuns,
+          wickets: newWickets,
+          matches: newMatchesP,
+          fifties: newFifties,
+          hundreds: newHundreds,
+          '5 wicket hauls': newHauls,
+
+          // NEW STATS
+          outs: newOuts,
+          balls_faced: newBallsFaced,
+          balls_thrown: newBallsThrown,
+          runs_faced: newRunsFaced,
+          sixes: newSixes,
+          fours: newFours
+        });
+
+        console.log('Updated player:', plName);
       }
     }
+
     console.log('User stats updated successfully');
+
   } catch (e) {
     console.warn('Error updating user stats:', e);
   }
 }
+
 
 // Function to show player scorecard
 function showPlayerScorecard(playerKey, winnerKey) {
@@ -784,7 +855,7 @@ function displayScorecard(userData, opponentData, play) {
   let html = `<div>Total Runs: ${(userData.total_runs || 0)} (${overs} overs, RR: ${runRate})`;
   if (play === 'inning2') {
     const chasing = (opponentData.total_runs || 0);
-    const ballsLeft = Math.max(300 - (userData.BALLS || 0), 0);
+    const ballsLeft = Math.max(6 - (userData.BALLS || 0), 0);
     const runsRequired = Math.max(chasing - (userData.total_runs || 0), 0);
     const rrr = ballsLeft > 0 ? ((runsRequired / ballsLeft) * 6).toFixed(2) : '0.00';
     html += ` Chasing: ${chasing} (RRR: ${rrr})`;
@@ -964,9 +1035,9 @@ if (power && bowlingRole === "powerplay_bowler") {
 
 // MIDDLE OVERS
 if (middle && battingRole === "striker") {
-    probs[1] += 6;    // singles more
+    probs[1] += 5;    // singles more
     probs[2] += 4;    // doubles more
-    probs[6] -= 2;    // wicket slightly reduced
+    probs[6] -= 3;    // wicket slightly reduced
 }
 if (middle && bowlingRole === "economical_bowler") {
     probs[0] += 7;    // dot balls more
@@ -976,8 +1047,8 @@ if (middle && bowlingRole === "economical_bowler") {
 
 // DEATH OVERS
 if (death && battingRole === "finisher") {
-    probs[4] += 7;    // more 4s
-    probs[5] += 7;    // more 6s
+    probs[4] += 5;    // more 4s
+    probs[5] += 5;    // more 6s
     probs[6] -= 2;    // slight wicket reduction
 }
 if (death && bowlingRole === "death_bowler") {
@@ -988,7 +1059,7 @@ if (death && bowlingRole === "death_bowler") {
 
     
     if (battingRole==="finisher"){
-    //  probs[6]-=10;
+     // probs[6]-=13;
       //probs[4]+=3;
       //probs[5]+=3;
     }

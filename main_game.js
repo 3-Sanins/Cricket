@@ -1025,7 +1025,7 @@ function run_probability(
 if (power && battingRole === "powerplay basher") {
     probs[4] += 5;    // +4s
     probs[5] += 5;    // +6s
-    probs[6] -= 7;    // fewer wickets
+    probs[6] -= 3;    // fewer wickets
 }
 if (power && bowlingRole === "powerplay bowler") {
     probs[6] += 4;    // more wickets
@@ -1037,7 +1037,7 @@ if (power && bowlingRole === "powerplay bowler") {
 if (middle && battingRole === "striker") {
     probs[1] += 6;    // singles more
     probs[2] += 4;    // doubles more
-    probs[6] -= 10;    // wicket slightly reduced
+    probs[6] -= 4;    // wicket slightly reduced
 }
 if (middle && bowlingRole === "economical") {
     probs[0] += 7;    // dot balls more
@@ -1047,8 +1047,8 @@ if (middle && bowlingRole === "economical") {
 
 // DEATH OVERS
 if (death && battingRole === "finisher") {
-    probs[4] += 6;    // more 4s
-    probs[5] += 6;    // more 6s
+    probs[4] += 5;    // more 4s
+    probs[5] += 5;    // more 6s
     probs[6] -= 3;    // slight wicket reduction
 }
 if (death && bowlingRole === "death bowler") {
@@ -1058,7 +1058,7 @@ if (death && bowlingRole === "death bowler") {
 }
 
     
-    if (battingRole==="finisher"){
+    if (battingRole==="finishers"){
       probs[6]-=10;
       probs[4]+=3;
       probs[5]+=3;

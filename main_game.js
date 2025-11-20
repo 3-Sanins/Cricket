@@ -1022,12 +1022,12 @@ function run_probability(
     // PHASE + ROLE BUFFS (constant, safe, non-backfiring)
 
 // POWERPLAY
-if (power && battingRole === "powerplay_basher") {
-    probs[4] += 6;    // +4s
+if (power && battingRole === "powerplay basher") {
+    probs[4] += 5;    // +4s
     probs[5] += 5;    // +6s
     probs[6] -= 3;    // fewer wickets
 }
-if (power && bowlingRole === "powerplay_bowler") {
+if (power && bowlingRole === "powerplay bowler") {
     probs[6] += 4;    // more wickets
     probs[4] -= 3;    // fewer 4s
     probs[5] -= 3;    // fewer 6s
@@ -1035,33 +1035,33 @@ if (power && bowlingRole === "powerplay_bowler") {
 
 // MIDDLE OVERS
 if (middle && battingRole === "striker") {
-    probs[1] += 5;    // singles more
+    probs[1] += 6;    // singles more
     probs[2] += 4;    // doubles more
-    probs[6] -= 3;    // wicket slightly reduced
+    probs[6] -= 4;    // wicket slightly reduced
 }
-if (middle && bowlingRole === "economical_bowler") {
+if (middle && bowlingRole === "economical") {
     probs[0] += 7;    // dot balls more
-    probs[4] -= 2;    // less 4s
-    probs[5] -= 2;    // less 6s
+    probs[4] -= 3;    // less 4s
+    probs[5] -= 3;    // less 6s
 }
 
 // DEATH OVERS
 if (death && battingRole === "finisher") {
-    probs[4] += 5;    // more 4s
-    probs[5] += 5;    // more 6s
-    probs[6] -= 2;    // slight wicket reduction
+    probs[4] += 6;    // more 4s
+    probs[5] += 6;    // more 6s
+    probs[6] -= 3;    // slight wicket reduction
 }
-if (death && bowlingRole === "death_bowler") {
-    probs[6] += 7;    // wicket more
-    probs[4] -= 4;    // fewer 4s
-    probs[5] -= 4;    // fewer 6s
+if (death && bowlingRole === "death bowler") {
+    probs[6] += 4;    // wicket more
+    probs[4] -= 3;    // fewer 4s
+    probs[5] -= 3;    // fewer 6s
 }
 
     
-    if (battingRole==="finisher"){
-     // probs[6]-=13;
-      //probs[4]+=3;
-      //probs[5]+=3;
+    if (battingRole==="finishers"){
+      probs[6]-=10;
+      probs[4]+=3;
+      probs[5]+=3;
     }
 
     // ----- LONG STAY -----

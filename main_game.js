@@ -1028,16 +1028,18 @@ if (power && battingRole === "powerplay basher") {
     probs[6] -= 3;    // fewer wickets
 }
 if (power && bowlingRole === "powerplay bowler") {
-    probs[6] += 4;    // more wickets
-    probs[4] -= 3;    // fewer 4s
-    probs[5] -= 3;    // fewer 6s
+    probs[6] += 5;    // more wickets
+    probs[4] -= 5;    // fewer 4s
+    probs[5] -= 5;    // fewer 6s
 }
 
 // MIDDLE OVERS
 if (middle && battingRole === "striker") {
     probs[1] += 6;    // singles more
     probs[2] += 4;    // doubles more
-    probs[6] -= 4;    // wicket slightly reduced
+    probs[6] -= 4;
+  probs[4]-=2;
+  probs[5]-=2;// wicket slightly reduced
 }
 if (middle && bowlingRole === "economical") {
     probs[0] += 7;    // dot balls more
@@ -1052,9 +1054,9 @@ if (death && battingRole === "finisher") {
     probs[6] -= 3;    // slight wicket reduction
 }
 if (death && bowlingRole === "death bowler") {
-    probs[6] += 4;    // wicket more
-    probs[4] -= 3;    // fewer 4s
-    probs[5] -= 3;    // fewer 6s
+    probs[6] += 5;    // wicket more
+    probs[4] -= 5;    // fewer 4s
+    probs[5] -= 5;    // fewer 6s
 }
 
     

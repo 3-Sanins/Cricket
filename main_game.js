@@ -429,7 +429,7 @@ if (other) updates[`${userRoot}/batting/${other}/strike`] = true;
     }
   }
 
-  if ((updatedUser.BALLS || 0) >= 6) {
+  if ((updatedUser.BALLS || 0) >= 300) {
     if (post.play === 'inning1') {
       const targetRuns = updatedUser.total_runs + 1;
       const battingUser = updatedUser.name;
@@ -547,7 +547,7 @@ currentOverEl.innerHTML = `Current Over: ${currentOverBalls.map(run => run === 7
     }
   }
 
-  if ((oppNow.BALLS || 0) >= 6) {
+  if ((oppNow.BALLS || 0) >= 300) {
     if (currentGameData.play === 'inning1') {
       const targetRuns = oppNow.total_runs + 1;
       const battingUser = oppNow.name;
@@ -1047,8 +1047,8 @@ if (middle && bowlingRole === "economical") {
 
 // DEATH OVERS
 if (death && battingRole === "finisher") {
-    probs[4] += 6;    // more 4s
-    probs[5] += 6;    // more 6s
+    probs[4] += 5;    // more 4s
+    probs[5] += 5;    // more 6s
     probs[6] -= 3;    // slight wicket reduction
 }
 if (death && bowlingRole === "death bowler") {
